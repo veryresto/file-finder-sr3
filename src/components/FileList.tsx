@@ -58,6 +58,25 @@ export function FileList({ files, searchQuery, onViewFile, onDeleteFile }: FileL
     );
   };
 
+  const getMatchSnippet = (content: string | null, query: string) => {
+    if (!content || !query.trim()) return null;
+    
+    const lowerContent = content.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    const matchIndex = lowerContent.indexOf(lowerQuery);
+    
+    if (matchIndex === -1) return null;
+    
+    const snippetStart = Math.max(0, matchIndex - 40);
+    const snippetEnd = Math.min(content.length, matchIndex + query.length + 40);
+    
+    let snippet = content.slice(snippetStart, snippetEnd);
+    if (snippetStart > 0) snippet = '...' + snippet;
+    if (snippetEnd < content.length) snippet = snippet + '...';
+    
+    return snippet;
+  };
+
   if (files.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -110,6 +129,12 @@ export function FileList({ files, searchQuery, onViewFile, onDeleteFile }: FileL
                 </div>
                 <span className="hidden sm:inline">{formatFileSize(file.file_size)}</span>
               </div>
+              
+              {searchQuery && getMatchSnippet(file.content, searchQuery) && (
+                <div className="mt-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2 font-mono">
+                  {highlightMatch(getMatchSnippet(file.content, searchQuery)!, searchQuery)}
+                </div>
+              )}
             </div>
           </div>
 

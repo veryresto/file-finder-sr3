@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface FileWithProfile {
   id: string;
@@ -28,6 +29,14 @@ interface FileListProps {
 
 export function FileList({ files, searchQuery, onViewFile, onDeleteFile }: FileListProps) {
   const { user } = useAuth();
+  const { isAdmin, canUploadFiles } = usePermissions();
+
+  // Admin can delete all files, users with upload permission can delete their own files
+  const canDeleteFile = (file: FileWithProfile) => {
+    if (isAdmin) return true;
+    if (canUploadFiles && user?.id === file.uploader_id) return true;
+    return false;
+  };
 
   const formatFileSize = (bytes: number | null) => {
     if (!bytes) return 'Unknown';
@@ -147,7 +156,7 @@ export function FileList({ files, searchQuery, onViewFile, onDeleteFile }: FileL
             >
               <Eye className="h-4 w-4" />
             </Button>
-            {user?.id === file.uploader_id && (
+            {canDeleteFile(file) && (
               <Button
                 variant="ghost"
                 size="icon"

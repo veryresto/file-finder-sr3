@@ -1,4 +1,5 @@
-import { Search, Upload, LogOut, FileText, User } from 'lucide-react';
+import { Search, Upload, LogOut, FileText, Shield } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -15,9 +16,11 @@ interface HeaderProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onUploadClick: () => void;
+  canUpload?: boolean;
+  isAdmin?: boolean;
 }
 
-export function Header({ searchQuery, onSearchChange, onUploadClick }: HeaderProps) {
+export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload = true, isAdmin = false }: HeaderProps) {
   const { user, signOut } = useAuth();
 
   const getInitials = (name?: string | null, email?: string | null) => {
@@ -53,10 +56,21 @@ export function Header({ searchQuery, onSearchChange, onUploadClick }: HeaderPro
         </div>
 
         <div className="flex items-center gap-2">
-          <Button onClick={onUploadClick} size="sm" className="gap-2">
-            <Upload className="h-4 w-4" />
-            <span className="hidden sm:inline">Upload</span>
-          </Button>
+          {isAdmin && (
+            <Button variant="outline" size="sm" asChild className="gap-2">
+              <Link to="/admin">
+                <Shield className="h-4 w-4" />
+                <span className="hidden sm:inline">Admin</span>
+              </Link>
+            </Button>
+          )}
+          
+          {canUpload && (
+            <Button onClick={onUploadClick} size="sm" className="gap-2">
+              <Upload className="h-4 w-4" />
+              <span className="hidden sm:inline">Upload</span>
+            </Button>
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

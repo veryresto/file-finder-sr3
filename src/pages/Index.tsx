@@ -4,7 +4,9 @@ import { FileList } from '@/components/FileList';
 import { FileUploadModal } from '@/components/FileUploadModal';
 import { FileViewerModal } from '@/components/FileViewerModal';
 import { LoginScreen } from '@/components/LoginScreen';
+import { PendingApprovalScreen } from '@/components/PendingApprovalScreen';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
@@ -36,6 +38,7 @@ interface FileWithProfile {
 
 const Index = () => {
   const { user, loading: authLoading } = useAuth();
+  const { isAdmin, isApproved, canReadFiles, canUploadFiles, loading: permLoading } = usePermissions();
   const { toast } = useToast();
   
   const [files, setFiles] = useState<FileWithProfile[]>([]);
@@ -79,10 +82,12 @@ const Index = () => {
   };
 
   useEffect(() => {
-    if (user) {
+    if (user && isApproved) {
       fetchFiles();
+    } else if (user && !permLoading && !isApproved) {
+      setLoading(false);
     }
-  }, [user]);
+  }, [user, isApproved, permLoading]);
 
   const filteredFiles = useMemo(() => {
     if (!searchQuery.trim()) return files;
@@ -130,7 +135,7 @@ const Index = () => {
     }
   };
 
-  if (authLoading) {
+  if (authLoading || permLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -142,12 +147,18 @@ const Index = () => {
     return <LoginScreen />;
   }
 
+  if (!isApproved) {
+    return <PendingApprovalScreen />;
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Header
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onUploadClick={() => setUploadModalOpen(true)}
+        canUpload={canUploadFiles || isAdmin}
+        isAdmin={isAdmin}
       />
 
       <main className="container px-4 md:px-6 py-8">

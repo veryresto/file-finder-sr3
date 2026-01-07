@@ -23,6 +23,7 @@ interface UserWithPermissions {
   email: string | null;
   full_name: string | null;
   avatar_url: string | null;
+  house_number: string | null;
   created_at: string;
   isAdmin: boolean;
   canReadFiles: boolean;
@@ -84,6 +85,7 @@ export default function Admin() {
           email: profile.email,
           full_name: profile.full_name,
           avatar_url: profile.avatar_url,
+          house_number: profile.house_number,
           created_at: profile.created_at,
           isAdmin: userRoles.some(r => r.role === 'admin'),
           canReadFiles: userPerms.some(p => p.permission === 'read_files'),
@@ -213,6 +215,7 @@ export default function Admin() {
             <TableHeader>
               <TableRow>
                 <TableHead>User</TableHead>
+                <TableHead>House #</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-center">
                   <div className="flex items-center justify-center gap-1">
@@ -245,6 +248,11 @@ export default function Admin() {
                       </div>
                     </div>
                   </TableCell>
+                  <TableCell>
+                    <span className="text-sm font-medium">
+                      {userItem.house_number || '-'}
+                    </span>
+                  </TableCell>
                   <TableCell>{getStatusBadge(userItem)}</TableCell>
                   <TableCell className="text-center">
                     {userItem.isAdmin ? (
@@ -276,7 +284,7 @@ export default function Admin() {
               ))}
               {users.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                     No users found
                   </TableCell>
                 </TableRow>

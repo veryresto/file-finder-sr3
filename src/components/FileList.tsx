@@ -67,23 +67,26 @@ export function FileList({ files, searchQuery, onViewFile, onDeleteFile }: FileL
     );
   };
 
-  const getMatchSnippet = (content: string | null, query: string) => {
-    if (!content || !query.trim()) return null;
+  const getAllMatchSnippets = (content: string | null, query: string): string[] => {
+    if (!content || !query.trim()) return [];
     
-    const lowerContent = content.toLowerCase();
+    const lines = content.split('\n');
     const lowerQuery = query.toLowerCase();
-    const matchIndex = lowerContent.indexOf(lowerQuery);
+    const matchingLines: string[] = [];
     
-    if (matchIndex === -1) return null;
+    lines.forEach((line, lineIndex) => {
+      if (line.toLowerCase().includes(lowerQuery)) {
+        const lineNum = lineIndex + 1;
+        const trimmedLine = line.trim();
+        // Truncate very long lines
+        const displayLine = trimmedLine.length > 120 
+          ? trimmedLine.slice(0, 120) + '...' 
+          : trimmedLine;
+        matchingLines.push(`Line ${lineNum}: ${displayLine}`);
+      }
+    });
     
-    const snippetStart = Math.max(0, matchIndex - 40);
-    const snippetEnd = Math.min(content.length, matchIndex + query.length + 40);
-    
-    let snippet = content.slice(snippetStart, snippetEnd);
-    if (snippetStart > 0) snippet = '...' + snippet;
-    if (snippetEnd < content.length) snippet = snippet + '...';
-    
-    return snippet;
+    return matchingLines;
   };
 
   if (files.length === 0) {
@@ -139,9 +142,13 @@ export function FileList({ files, searchQuery, onViewFile, onDeleteFile }: FileL
                 <span className="hidden sm:inline">{formatFileSize(file.file_size)}</span>
               </div>
               
-              {searchQuery && getMatchSnippet(file.content, searchQuery) && (
-                <div className="mt-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2 font-mono">
-                  {highlightMatch(getMatchSnippet(file.content, searchQuery)!, searchQuery)}
+              {searchQuery && getAllMatchSnippets(file.content, searchQuery).length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {getAllMatchSnippets(file.content, searchQuery).map((snippet, i) => (
+                    <div key={i} className="text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-1.5 font-mono">
+                      {highlightMatch(snippet, searchQuery)}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

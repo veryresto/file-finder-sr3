@@ -47,6 +47,8 @@ const Index = () => {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<FileWithProfile | null>(null);
   const [fileToDelete, setFileToDelete] = useState<FileWithProfile | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
 
   const fetchFiles = async () => {
     try {
@@ -135,6 +137,66 @@ const Index = () => {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedFiles.size === 0) return;
+
+    try {
+      const filesToDelete = files.filter(f => selectedFiles.has(f.id));
+      const storagePaths = filesToDelete.map(f => f.storage_path);
+
+      // Delete from storage
+      const { error: storageError } = await supabase.storage
+        .from('text-files')
+        .remove(storagePaths);
+
+      if (storageError) throw storageError;
+
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from('files')
+        .delete()
+        .in('id', Array.from(selectedFiles));
+
+      if (dbError) throw dbError;
+
+      toast({
+        title: 'Files deleted',
+        description: `${selectedFiles.size} file(s) have been deleted`,
+      });
+
+      setSelectedFiles(new Set());
+      fetchFiles();
+    } catch (error: any) {
+      toast({
+        title: 'Error deleting files',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setShowBulkDeleteDialog(false);
+    }
+  };
+
+  const toggleFileSelection = (fileId: string) => {
+    setSelectedFiles(prev => {
+      const next = new Set(prev);
+      if (next.has(fileId)) {
+        next.delete(fileId);
+      } else {
+        next.add(fileId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedFiles.size === filteredFiles.length) {
+      setSelectedFiles(new Set());
+    } else {
+      setSelectedFiles(new Set(filteredFiles.map(f => f.id)));
+    }
+  };
+
   if (authLoading || permLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -182,6 +244,11 @@ const Index = () => {
             searchQuery={searchQuery}
             onViewFile={setSelectedFile}
             onDeleteFile={setFileToDelete}
+            selectedFiles={selectedFiles}
+            onToggleSelect={toggleFileSelection}
+            onToggleSelectAll={toggleSelectAll}
+            onBulkDelete={() => setShowBulkDeleteDialog(true)}
+            isAdmin={isAdmin}
           />
         )}
       </main>
@@ -211,6 +278,23 @@ const Index = () => {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteFile} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedFiles.size} file(s)?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedFiles.size} selected file(s)? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete All
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

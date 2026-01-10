@@ -1,6 +1,7 @@
 import { FileText, Calendar, User, Eye, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Checkbox } from '@/components/ui/checkbox';
 import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -25,15 +26,30 @@ interface FileListProps {
   searchQuery: string;
   onViewFile: (file: FileWithProfile) => void;
   onDeleteFile: (file: FileWithProfile) => void;
+  selectedFiles?: Set<string>;
+  onToggleSelect?: (fileId: string) => void;
+  onToggleSelectAll?: () => void;
+  onBulkDelete?: () => void;
+  isAdmin?: boolean;
 }
 
-export function FileList({ files, searchQuery, onViewFile, onDeleteFile }: FileListProps) {
+export function FileList({ 
+  files, 
+  searchQuery, 
+  onViewFile, 
+  onDeleteFile,
+  selectedFiles = new Set(),
+  onToggleSelect,
+  onToggleSelectAll,
+  onBulkDelete,
+  isAdmin = false
+}: FileListProps) {
   const { user } = useAuth();
-  const { isAdmin, canUploadFiles } = usePermissions();
+  const { isAdmin: userIsAdmin, canUploadFiles } = usePermissions();
 
   // Admin can delete all files, users with upload permission can delete their own files
   const canDeleteFile = (file: FileWithProfile) => {
-    if (isAdmin) return true;
+    if (userIsAdmin) return true;
     if (canUploadFiles && user?.id === file.uploader_id) return true;
     return false;
   };
@@ -109,14 +125,52 @@ export function FileList({ files, searchQuery, onViewFile, onDeleteFile }: FileL
   }
 
   return (
-    <div className="grid gap-3">
-      {files.map((file, index) => (
-        <div
-          key={file.id}
-          className="group flex items-center justify-between p-4 rounded-xl bg-card border border-border/50 hover:border-border hover:shadow-elevated transition-all duration-200 animate-slide-up"
-          style={{ animationDelay: `${index * 50}ms` }}
-        >
-          <div className="flex items-center gap-4 min-w-0 flex-1">
+    <div className="space-y-3">
+      {isAdmin && files.length > 0 && (
+        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border/50">
+          <div className="flex items-center gap-3">
+            <Checkbox
+              checked={selectedFiles.size === files.length && files.length > 0}
+              onCheckedChange={onToggleSelectAll}
+              aria-label="Select all files"
+            />
+            <span className="text-sm text-muted-foreground">
+              {selectedFiles.size > 0 
+                ? `${selectedFiles.size} of ${files.length} selected`
+                : 'Select all'
+              }
+            </span>
+          </div>
+          {selectedFiles.size > 0 && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={onBulkDelete}
+              className="gap-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Selected ({selectedFiles.size})
+            </Button>
+          )}
+        </div>
+      )}
+      
+      <div className="grid gap-3">
+        {files.map((file, index) => (
+          <div
+            key={file.id}
+            className="group flex items-center justify-between p-4 rounded-xl bg-card border border-border/50 hover:border-border hover:shadow-elevated transition-all duration-200 animate-slide-up"
+            style={{ animationDelay: `${index * 50}ms` }}
+          >
+            <div className="flex items-center gap-4 min-w-0 flex-1">
+              {isAdmin && (
+                <Checkbox
+                  checked={selectedFiles.has(file.id)}
+                  onCheckedChange={() => onToggleSelect?.(file.id)}
+                  aria-label={`Select ${file.name}`}
+                  className="flex-shrink-0"
+                />
+              )}
             <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
               <FileText className="h-5 w-5 text-primary" />
             </div>
@@ -172,10 +226,11 @@ export function FileList({ files, searchQuery, onViewFile, onDeleteFile }: FileL
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

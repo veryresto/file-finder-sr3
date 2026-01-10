@@ -17,8 +17,8 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "robots.txt"],
       manifest: {
-        name: "DocSearch - Search Your Text Documents",
-        short_name: "DocSearch",
+        name: "IPL Finder",
+        short_name: "IPLFinder",
         description: "Upload, organize, and search through your text documents with powerful full-text search.",
         theme_color: "#2563eb",
         background_color: "#ffffff",

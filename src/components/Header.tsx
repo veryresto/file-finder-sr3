@@ -1,16 +1,16 @@
-import { Search, Upload, LogOut, FileText, Shield } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Search, Upload, LogOut, FileText, Shield } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useAuth } from '@/hooks/useAuth';
+} from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/hooks/useAuth";
 
 interface HeaderProps {
   searchQuery: string;
@@ -25,9 +25,14 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
 
   const getInitials = (name?: string | null, email?: string | null) => {
     if (name) {
-      return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+      return name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
     }
-    return email?.charAt(0).toUpperCase() || 'U';
+    return email?.charAt(0).toUpperCase() || "U";
   };
 
   return (
@@ -37,9 +42,7 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
             <FileText className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="hidden font-semibold text-foreground sm:inline-block">
-            DocSearch
-          </span>
+          <span className="hidden font-semibold text-foreground sm:inline-block">IPL Finder</span>
         </div>
 
         <div className="flex flex-1 max-w-xl items-center">
@@ -64,7 +67,7 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
               </Link>
             </Button>
           )}
-          
+
           {canUpload && (
             <Button onClick={onUploadClick} size="sm" className="gap-2">
               <Upload className="h-4 w-4" />
@@ -76,9 +79,9 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                 <Avatar className="h-9 w-9">
-                  <AvatarImage 
-                    src={user?.user_metadata?.avatar_url} 
-                    alt={user?.user_metadata?.full_name || user?.email || 'User'} 
+                  <AvatarImage
+                    src={user?.user_metadata?.avatar_url}
+                    alt={user?.user_metadata?.full_name || user?.email || "User"}
                   />
                   <AvatarFallback className="bg-primary/10 text-primary">
                     {getInitials(user?.user_metadata?.full_name, user?.email)}
@@ -95,7 +98,7 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col space-y-0.5">
-                  <p className="text-sm font-medium">{user?.user_metadata?.full_name || 'User'}</p>
+                  <p className="text-sm font-medium">{user?.user_metadata?.full_name || "User"}</p>
                   <p className="text-xs text-muted-foreground truncate max-w-[180px]">{user?.email}</p>
                 </div>
               </div>

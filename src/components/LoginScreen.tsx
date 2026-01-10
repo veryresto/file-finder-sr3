@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { FileText, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/use-toast';
+import { useState } from "react";
+import { FileText, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 export function LoginScreen() {
   const { signInWithGoogle } = useAuth();
@@ -15,9 +15,9 @@ export function LoginScreen() {
       await signInWithGoogle();
     } catch (error: any) {
       toast({
-        title: 'Sign in failed',
-        description: error.message || 'An error occurred during sign in',
-        variant: 'destructive',
+        title: "Sign in failed",
+        description: error.message || "An error occurred during sign in",
+        variant: "destructive",
       });
       setLoading(false);
     }
@@ -30,7 +30,7 @@ export function LoginScreen() {
           <div className="h-16 w-16 rounded-2xl bg-primary flex items-center justify-center mb-4">
             <FileText className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">DocSearch</h1>
+          <h1 className="text-2xl font-bold text-foreground">IPLFinder</h1>
           <p className="text-muted-foreground mt-2 text-center">
             Upload, organize, and search through your text documents
           </p>
@@ -38,16 +38,9 @@ export function LoginScreen() {
 
         <div className="bg-card border border-border rounded-2xl p-8 shadow-elevated">
           <h2 className="text-lg font-semibold text-center mb-2">Welcome back</h2>
-          <p className="text-sm text-muted-foreground text-center mb-6">
-            Sign in to access your documents
-          </p>
+          <p className="text-sm text-muted-foreground text-center mb-6">Sign in to access your documents</p>
 
-          <Button
-            variant="outline"
-            className="w-full h-12 text-base"
-            onClick={handleGoogleSignIn}
-            disabled={loading}
-          >
+          <Button variant="outline" className="w-full h-12 text-base" onClick={handleGoogleSignIn} disabled={loading}>
             {loading ? (
               <Loader2 className="h-5 w-5 animate-spin" />
             ) : (

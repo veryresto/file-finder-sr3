@@ -57,6 +57,8 @@ export function PendingApprovalScreen() {
     }
 
     setLoading(true);
+    const isFirstSubmission = !savedHouseNumber;
+    
     try {
       const { error } = await supabase
         .from('profiles')
@@ -66,6 +68,25 @@ export function PendingApprovalScreen() {
       if (error) throw error;
 
       setSavedHouseNumber(houseNumber.trim());
+      
+      // Send notification to admin if this is the first submission
+      if (isFirstSubmission) {
+        try {
+          await supabase.functions.invoke('send-notification-email', {
+            body: {
+              type: 'new_user',
+              userEmail: user?.email,
+              userName: user?.user_metadata?.full_name || user?.user_metadata?.name,
+              houseNumber: houseNumber.trim(),
+            },
+          });
+          console.log('Admin notification sent');
+        } catch (notifError) {
+          console.error('Failed to send admin notification:', notifError);
+          // Don't throw - notification failure shouldn't block the form submission
+        }
+      }
+
       toast({
         title: 'House number saved',
         description: 'Your information has been submitted for approval',

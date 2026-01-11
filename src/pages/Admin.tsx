@@ -106,12 +106,44 @@ export default function Admin() {
     }
   };
 
+  const sendApprovalNotification = async (
+    userItem: UserWithPermissions,
+    newPermission: string
+  ) => {
+    try {
+      // Get current permissions for the user
+      const currentPermissions = [];
+      if (userItem.canReadFiles || newPermission === 'read_files') currentPermissions.push('read_files');
+      if (userItem.canUploadFiles || newPermission === 'upload_files') currentPermissions.push('upload_files');
+
+      // Only send notification if this is their first approval (going from 0 to 1+ permissions)
+      const hadNoPermissions = !userItem.canReadFiles && !userItem.canUploadFiles;
+      
+      if (hadNoPermissions && userItem.email) {
+        console.log('Sending approval notification to:', userItem.email);
+        await supabase.functions.invoke('send-notification-email', {
+          body: {
+            type: 'user_approved',
+            userEmail: userItem.email,
+            userName: userItem.full_name,
+            permissions: currentPermissions,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Failed to send approval notification:', error);
+      // Don't throw - notification failure shouldn't block the permission update
+    }
+  };
+
   const togglePermission = async (
     userId: string,
     permission: 'read_files' | 'upload_files',
     currentValue: boolean
   ) => {
     setUpdating(`${userId}-${permission}`);
+    const userItem = users.find(u => u.id === userId);
+    
     try {
       if (currentValue) {
         // Remove permission
@@ -133,6 +165,11 @@ export default function Admin() {
           });
 
         if (error) throw error;
+
+        // Send approval notification if this is the user's first permission
+        if (userItem) {
+          await sendApprovalNotification(userItem, permission);
+        }
       }
 
       // Update local state

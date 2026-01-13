@@ -71,6 +71,16 @@ export function PendingApprovalScreen() {
       return;
     }
 
+    // Validate WhatsApp number format (only digits and optional + at the start)
+    if (whatsappNumber && !/^\+?\d*$/.test(whatsappNumber)) {
+      toast({
+        title: 'Invalid WhatsApp number',
+        description: 'WhatsApp number can only contain numbers and optionally start with +',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
     const isFirstSubmission = !savedHouseNumber;
     
@@ -173,13 +183,19 @@ export function PendingApprovalScreen() {
                 <Input
                   id="whatsappNumber"
                   type="tel"
-                  placeholder="e.g., 08123456789"
+                  placeholder="e.g., 08123456789 or +628123456789"
                   value={whatsappNumber}
-                  onChange={(e) => setWhatsappNumber(e.target.value)}
+                  onChange={(e) => {
+                    // Only allow digits and + at the start
+                    const value = e.target.value;
+                    if (value === '' || /^\+?\d*$/.test(value)) {
+                      setWhatsappNumber(value);
+                    }
+                  }}
                   maxLength={25}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Your WhatsApp number may be used by admin to contact you for verification before approval.
+                  Only numbers allowed (can start with +). Your WhatsApp number may be used by admin to contact you for verification before approval.
                 </p>
               </div>
               <Button type="submit" className="w-full" disabled={loading}>

@@ -36,6 +36,8 @@ interface UserWithPermissions {
   avatar_url: string | null;
   house_number: string | null;
   created_at: string;
+  first_login: string | null;
+  last_sign_in: string | null;
   isAdmin: boolean;
   canReadFiles: boolean;
   canUploadFiles: boolean;
@@ -67,32 +69,36 @@ export default function Admin() {
 
   const fetchUsers = async () => {
     try {
-      // Get all profiles
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Fetch all data in parallel
+      const [profilesResult, rolesResult, permissionsResult, authInfoResult] = await Promise.all([
+        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+        supabase.from('user_roles').select('user_id, role'),
+        supabase.from('user_permissions').select('user_id, permission'),
+        supabase.functions.invoke('get-users-auth-info'),
+      ]);
 
-      if (profilesError) throw profilesError;
+      if (profilesResult.error) throw profilesResult.error;
+      if (rolesResult.error) throw rolesResult.error;
+      if (permissionsResult.error) throw permissionsResult.error;
 
-      // Get all roles
-      const { data: roles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('user_id, role');
+      const profiles = profilesResult.data;
+      const roles = rolesResult.data;
+      const permissions = permissionsResult.data;
+      const authUsers = authInfoResult.data?.users || [];
 
-      if (rolesError) throw rolesError;
-
-      // Get all permissions
-      const { data: permissions, error: permError } = await supabase
-        .from('user_permissions')
-        .select('user_id, permission');
-
-      if (permError) throw permError;
+      // Create a map for quick auth info lookup
+      const authInfoMap = new Map<string, { first_login: string | null; last_sign_in: string | null }>(
+        authUsers.map((u: { id: string; created_at: string | null; last_sign_in_at: string | null }) => [
+          u.id,
+          { first_login: u.created_at, last_sign_in: u.last_sign_in_at }
+        ])
+      );
 
       // Combine data
       const usersWithPermissions: UserWithPermissions[] = (profiles || []).map(profile => {
         const userRoles = roles?.filter(r => r.user_id === profile.id) || [];
         const userPerms = permissions?.filter(p => p.user_id === profile.id) || [];
+        const authInfo = authInfoMap.get(profile.id) || { first_login: null, last_sign_in: null };
 
         return {
           id: profile.id,
@@ -101,6 +107,8 @@ export default function Admin() {
           avatar_url: profile.avatar_url,
           house_number: profile.house_number,
           created_at: profile.created_at,
+          first_login: authInfo.first_login,
+          last_sign_in: authInfo.last_sign_in,
           isAdmin: userRoles.some(r => r.role === 'admin'),
           canReadFiles: userPerms.some(p => p.permission === 'read_files'),
           canUploadFiles: userPerms.some(p => p.permission === 'upload_files'),
@@ -228,6 +236,18 @@ export default function Admin() {
     return email?.slice(0, 2).toUpperCase() || '??';
   };
 
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   // Selectable users are non-admins and not the current user
   const selectableUsers = users.filter(u => !u.isAdmin && u.id !== user?.id);
   const allSelectableSelected = selectableUsers.length > 0 && 
@@ -348,6 +368,8 @@ export default function Admin() {
                 </TableHead>
                 <TableHead>User</TableHead>
                 <TableHead>House #</TableHead>
+                <TableHead>First Login</TableHead>
+                <TableHead>Last Sign In</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-center">
                   <div className="flex items-center justify-center gap-1">
@@ -397,6 +419,16 @@ export default function Admin() {
                         {userItem.house_number || '-'}
                       </span>
                     </TableCell>
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDate(userItem.first_login)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDate(userItem.last_sign_in)}
+                      </span>
+                    </TableCell>
                     <TableCell>{getStatusBadge(userItem)}</TableCell>
                     <TableCell className="text-center">
                       {userItem.isAdmin ? (
@@ -429,7 +461,7 @@ export default function Admin() {
               })}
               {users.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     No users found
                   </TableCell>
                 </TableRow>

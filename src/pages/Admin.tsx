@@ -35,6 +35,7 @@ interface UserWithPermissions {
   full_name: string | null;
   avatar_url: string | null;
   house_number: string | null;
+  whatsapp_number: string | null;
   created_at: string;
   first_login: string | null;
   last_sign_in: string | null;
@@ -106,6 +107,7 @@ export default function Admin() {
           full_name: profile.full_name,
           avatar_url: profile.avatar_url,
           house_number: profile.house_number,
+          whatsapp_number: profile.whatsapp_number,
           created_at: profile.created_at,
           first_login: authInfo.first_login,
           last_sign_in: authInfo.last_sign_in,
@@ -368,6 +370,7 @@ export default function Admin() {
                 </TableHead>
                 <TableHead>User</TableHead>
                 <TableHead>House #</TableHead>
+                <TableHead>Phone</TableHead>
                 <TableHead>First Login</TableHead>
                 <TableHead>Last Sign In</TableHead>
                 <TableHead>Status</TableHead>
@@ -420,6 +423,11 @@ export default function Admin() {
                       </span>
                     </TableCell>
                     <TableCell>
+                      <span className="text-sm">
+                        {userItem.whatsapp_number || '-'}
+                      </span>
+                    </TableCell>
+                    <TableCell>
                       <span className="text-xs text-muted-foreground">
                         {formatDate(userItem.first_login)}
                       </span>
@@ -461,7 +469,7 @@ export default function Admin() {
               })}
               {users.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     No users found
                   </TableCell>
                 </TableRow>

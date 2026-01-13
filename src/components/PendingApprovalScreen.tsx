@@ -1,17 +1,17 @@
-import { useState, useEffect } from 'react';
-import { Clock, LogOut, Check } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useEffect } from "react";
+import { Clock, LogOut, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 export function PendingApprovalScreen() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
-  const [houseNumber, setHouseNumber] = useState('');
-  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [houseNumber, setHouseNumber] = useState("");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
   const [savedHouseNumber, setSavedHouseNumber] = useState<string | null>(null);
   const [savedWhatsappNumber, setSavedWhatsappNumber] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -20,13 +20,13 @@ export function PendingApprovalScreen() {
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user?.id) return;
-      
+
       const { data } = await supabase
-        .from('profiles')
-        .select('house_number, whatsapp_number')
-        .eq('id', user.id)
+        .from("profiles")
+        .select("house_number, whatsapp_number")
+        .eq("id", user.id)
         .single();
-      
+
       if (data?.house_number) {
         setSavedHouseNumber(data.house_number);
         setHouseNumber(data.house_number);
@@ -37,94 +37,84 @@ export function PendingApprovalScreen() {
       }
       setFetching(false);
     };
-    
+
     fetchProfile();
   }, [user?.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!houseNumber.trim()) {
       toast({
-        title: 'House number required',
-        description: 'Please enter your house number',
-        variant: 'destructive',
+        title: "House number required",
+        description: "Please enter your house number",
+        variant: "destructive",
       });
       return;
     }
 
     if (houseNumber.length > 25) {
       toast({
-        title: 'House number too long',
-        description: 'House number must be 25 characters or less',
-        variant: 'destructive',
+        title: "House number too long",
+        description: "House number must be 25 characters or less",
+        variant: "destructive",
       });
       return;
     }
 
     if (whatsappNumber && whatsappNumber.length > 25) {
       toast({
-        title: 'WhatsApp number too long',
-        description: 'WhatsApp number must be 25 characters or less',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    // Validate WhatsApp number format (only digits and optional + at the start)
-    if (whatsappNumber && !/^\+?\d*$/.test(whatsappNumber)) {
-      toast({
-        title: 'Invalid WhatsApp number',
-        description: 'WhatsApp number can only contain numbers and optionally start with +',
-        variant: 'destructive',
+        title: "WhatsApp number too long",
+        description: "WhatsApp number must be 25 characters or less",
+        variant: "destructive",
       });
       return;
     }
 
     setLoading(true);
     const isFirstSubmission = !savedHouseNumber;
-    
+
     try {
       const { error } = await supabase
-        .from('profiles')
-        .update({ 
+        .from("profiles")
+        .update({
           house_number: houseNumber.trim(),
-          whatsapp_number: whatsappNumber.trim() || null
+          whatsapp_number: whatsappNumber.trim() || null,
         })
-        .eq('id', user?.id);
+        .eq("id", user?.id);
 
       if (error) throw error;
 
       setSavedHouseNumber(houseNumber.trim());
       setSavedWhatsappNumber(whatsappNumber.trim() || null);
-      
+
       // Send notification to admin if this is the first submission
       if (isFirstSubmission) {
         try {
-          await supabase.functions.invoke('send-notification-email', {
+          await supabase.functions.invoke("send-notification-email", {
             body: {
-              type: 'new_user',
+              type: "new_user",
               userEmail: user?.email,
               userName: user?.user_metadata?.full_name || user?.user_metadata?.name,
               houseNumber: houseNumber.trim(),
             },
           });
-          console.log('Admin notification sent');
+          console.log("Admin notification sent");
         } catch (notifError) {
-          console.error('Failed to send admin notification:', notifError);
+          console.error("Failed to send admin notification:", notifError);
           // Don't throw - notification failure shouldn't block the form submission
         }
       }
 
       toast({
-        title: 'House number saved',
-        description: 'Your information has been submitted for approval',
+        title: "House number saved",
+        description: "Your information has been submitted for approval",
       });
     } catch (error: any) {
       toast({
-        title: 'Error saving house number',
+        title: "Error saving house number",
         description: error.message,
-        variant: 'destructive',
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -137,7 +127,7 @@ export function PendingApprovalScreen() {
         <div className="mx-auto w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
           <Clock className="w-10 h-10 text-primary" />
         </div>
-        
+
         <div className="space-y-2">
           <h1 className="text-2xl font-bold text-foreground">Awaiting Approval</h1>
           <p className="text-muted-foreground">
@@ -145,8 +135,8 @@ export function PendingApprovalScreen() {
           </p>
         </div>
 
-        {!fetching && (
-          savedHouseNumber ? (
+        {!fetching &&
+          (savedHouseNumber ? (
             <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 text-sm">
               <div className="flex items-center justify-center gap-2 text-green-600 mb-1">
                 <Check className="w-4 h-4" />
@@ -174,41 +164,30 @@ export function PendingApprovalScreen() {
                   maxLength={25}
                   required
                 />
-                <p className="text-xs text-muted-foreground">
-                  Maximum 25 characters
-                </p>
+                <p className="text-xs text-muted-foreground">Maximum 25 characters</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="whatsappNumber">WhatsApp Number (optional)</Label>
                 <Input
                   id="whatsappNumber"
                   type="tel"
-                  placeholder="e.g., 08123456789 or +628123456789"
+                  placeholder="e.g., 08123456789"
                   value={whatsappNumber}
-                  onChange={(e) => {
-                    // Only allow digits and + at the start
-                    const value = e.target.value;
-                    if (value === '' || /^\+?\d*$/.test(value)) {
-                      setWhatsappNumber(value);
-                    }
-                  }}
+                  onChange={(e) => setWhatsappNumber(e.target.value)}
                   maxLength={25}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Only numbers allowed (can start with +). Your WhatsApp number may be used by admin to contact you for verification before approval.
+                  Your WhatsApp number may be used by admin to contact you for verification before approval.
                 </p>
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Submitting...' : 'Submit'}
+                {loading ? "Submitting..." : "Submit"}
               </Button>
             </form>
-          )
-        )}
+          ))}
 
         <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
-          <p>
-            Once approved, you'll be able to view and search files. Additional upload permissions may also be granted by the administrator.
-          </p>
+          <p>Once approved, you'll be able to view and search files.</p>
         </div>
 
         <Button variant="outline" onClick={signOut} className="gap-2">

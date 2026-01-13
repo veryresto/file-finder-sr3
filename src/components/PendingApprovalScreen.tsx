@@ -11,7 +11,9 @@ export function PendingApprovalScreen() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const [houseNumber, setHouseNumber] = useState('');
+  const [whatsappNumber, setWhatsappNumber] = useState('');
   const [savedHouseNumber, setSavedHouseNumber] = useState<string | null>(null);
+  const [savedWhatsappNumber, setSavedWhatsappNumber] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
@@ -21,13 +23,17 @@ export function PendingApprovalScreen() {
       
       const { data } = await supabase
         .from('profiles')
-        .select('house_number')
+        .select('house_number, whatsapp_number')
         .eq('id', user.id)
         .single();
       
       if (data?.house_number) {
         setSavedHouseNumber(data.house_number);
         setHouseNumber(data.house_number);
+      }
+      if (data?.whatsapp_number) {
+        setSavedWhatsappNumber(data.whatsapp_number);
+        setWhatsappNumber(data.whatsapp_number);
       }
       setFetching(false);
     };
@@ -56,18 +62,31 @@ export function PendingApprovalScreen() {
       return;
     }
 
+    if (whatsappNumber && whatsappNumber.length > 25) {
+      toast({
+        title: 'WhatsApp number too long',
+        description: 'WhatsApp number must be 25 characters or less',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
     const isFirstSubmission = !savedHouseNumber;
     
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ house_number: houseNumber.trim() })
+        .update({ 
+          house_number: houseNumber.trim(),
+          whatsapp_number: whatsappNumber.trim() || null
+        })
         .eq('id', user?.id);
 
       if (error) throw error;
 
       setSavedHouseNumber(houseNumber.trim());
+      setSavedWhatsappNumber(whatsappNumber.trim() || null);
       
       // Send notification to admin if this is the first submission
       if (isFirstSubmission) {
@@ -126,6 +145,11 @@ export function PendingApprovalScreen() {
               <p className="text-muted-foreground">
                 House Number: <span className="font-medium text-foreground">{savedHouseNumber}</span>
               </p>
+              {savedWhatsappNumber && (
+                <p className="text-muted-foreground">
+                  WhatsApp: <span className="font-medium text-foreground">{savedWhatsappNumber}</span>
+                </p>
+              )}
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4 text-left">
@@ -142,6 +166,20 @@ export function PendingApprovalScreen() {
                 />
                 <p className="text-xs text-muted-foreground">
                   Maximum 25 characters
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="whatsappNumber">WhatsApp Number (optional)</Label>
+                <Input
+                  id="whatsappNumber"
+                  type="tel"
+                  placeholder="e.g., 08123456789"
+                  value={whatsappNumber}
+                  onChange={(e) => setWhatsappNumber(e.target.value)}
+                  maxLength={25}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your WhatsApp number may be used by admin to contact you for verification before approval.
                 </p>
               </div>
               <Button type="submit" className="w-full" disabled={loading}>

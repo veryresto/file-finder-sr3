@@ -18,9 +18,10 @@ interface HeaderProps {
   onUploadClick: () => void;
   canUpload?: boolean;
   isAdmin?: boolean;
+  hasPendingUsers?: boolean;
 }
 
-export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload = true, isAdmin = false }: HeaderProps) {
+export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload = true, isAdmin = false, hasPendingUsers = false }: HeaderProps) {
   const { user, signOut } = useAuth();
 
   const getInitials = (name?: string | null, email?: string | null) => {
@@ -60,10 +61,13 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
 
         <div className="flex items-center gap-2">
           {isAdmin && (
-            <Button variant="outline" size="sm" asChild className="gap-2">
+            <Button variant="outline" size="sm" asChild className="gap-2 relative">
               <Link to="/admin">
                 <Shield className="h-4 w-4" />
                 <span className="hidden sm:inline">Admin</span>
+                {hasPendingUsers && (
+                  <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive" />
+                )}
               </Link>
             </Button>
           )}

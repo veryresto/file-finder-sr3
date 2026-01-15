@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Shield, Upload, Eye, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, Shield, Upload, Eye, Trash2, XCircle, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +40,7 @@ interface UserWithPermissions {
   first_login: string | null;
   last_sign_in: string | null;
   isAdmin: boolean;
+  isRejected: boolean;
   canReadFiles: boolean;
   canUploadFiles: boolean;
 }
@@ -112,6 +113,7 @@ export default function Admin() {
           first_login: authInfo.first_login,
           last_sign_in: authInfo.last_sign_in,
           isAdmin: userRoles.some(r => r.role === 'admin'),
+          isRejected: userPerms.some(p => p.permission === 'rejected'),
           canReadFiles: userPerms.some(p => p.permission === 'read_files'),
           canUploadFiles: userPerms.some(p => p.permission === 'upload_files'),
         };
@@ -226,6 +228,100 @@ export default function Admin() {
     }
   };
 
+  const rejectUser = async (userId: string) => {
+    setUpdating(`${userId}-reject`);
+    
+    try {
+      // Remove all existing permissions first
+      await supabase
+        .from('user_permissions')
+        .delete()
+        .eq('user_id', userId);
+
+      // Add rejected permission
+      const { error } = await supabase
+        .from('user_permissions')
+        .insert({
+          user_id: userId,
+          permission: 'rejected',
+          granted_by: user?.id,
+        });
+
+      if (error) throw error;
+
+      // Update local state
+      setUsers(prev =>
+        prev.map(u => {
+          if (u.id === userId) {
+            return {
+              ...u,
+              isRejected: true,
+              canReadFiles: false,
+              canUploadFiles: false,
+            };
+          }
+          return u;
+        })
+      );
+
+      toast({
+        title: 'User rejected',
+        description: 'User has been rejected and moved to rejected list',
+      });
+    } catch (error) {
+      console.error('Error rejecting user:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to reject user',
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const unrejectUser = async (userId: string) => {
+    setUpdating(`${userId}-unreject`);
+    
+    try {
+      // Remove rejected permission
+      const { error } = await supabase
+        .from('user_permissions')
+        .delete()
+        .eq('user_id', userId)
+        .eq('permission', 'rejected');
+
+      if (error) throw error;
+
+      // Update local state
+      setUsers(prev =>
+        prev.map(u => {
+          if (u.id === userId) {
+            return {
+              ...u,
+              isRejected: false,
+            };
+          }
+          return u;
+        })
+      );
+
+      toast({
+        title: 'User restored',
+        description: 'User has been moved back to pending list',
+      });
+    } catch (error) {
+      console.error('Error restoring user:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to restore user',
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   const getInitials = (name?: string | null, email?: string | null) => {
     if (name) {
       return name
@@ -251,7 +347,8 @@ export default function Admin() {
   };
 
   // Selectable users are non-admins and not the current user
-  const selectableUsers = users.filter(u => !u.isAdmin && u.id !== user?.id);
+  // Selectable users are non-admins, not rejected, and not the current user
+  const selectableUsers = users.filter(u => !u.isAdmin && !u.isRejected && u.id !== user?.id);
   const allSelectableSelected = selectableUsers.length > 0 && 
     selectableUsers.every(u => selectedUsers.has(u.id));
 
@@ -315,11 +412,18 @@ export default function Admin() {
     if (userItem.isAdmin) {
       return <Badge className="bg-primary/20 text-primary border-primary/30">Admin</Badge>;
     }
+    if (userItem.isRejected) {
+      return <Badge variant="destructive" className="bg-destructive/20 text-destructive border-destructive/30">Rejected</Badge>;
+    }
     if (userItem.canReadFiles || userItem.canUploadFiles) {
       return <Badge variant="secondary" className="bg-green-500/20 text-green-600 border-green-500/30">Approved</Badge>;
     }
     return <Badge variant="outline" className="text-muted-foreground">Pending</Badge>;
   };
+
+  // Split users into active and rejected
+  const activeUsers = users.filter(u => !u.isRejected);
+  const rejectedUsers = users.filter(u => u.isRejected);
 
   if (permLoading || loading) {
     return (
@@ -356,127 +460,215 @@ export default function Admin() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="rounded-lg border border-border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12">
-                  <Checkbox
-                    checked={allSelectableSelected && selectableUsers.length > 0}
-                    onCheckedChange={toggleSelectAll}
-                    disabled={selectableUsers.length === 0}
-                  />
-                </TableHead>
-                <TableHead>User</TableHead>
-                <TableHead>House #</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>First Login</TableHead>
-                <TableHead>Last Sign In</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-center">
-                  <div className="flex items-center justify-center gap-1">
-                    <Eye className="h-4 w-4" />
-                    Read
-                  </div>
-                </TableHead>
-                <TableHead className="text-center">
-                  <div className="flex items-center justify-center gap-1">
-                    <Upload className="h-4 w-4" />
-                    Upload
-                  </div>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map(userItem => {
-                const isSelectable = !userItem.isAdmin && userItem.id !== user?.id;
-                return (
-                  <TableRow key={userItem.id} className={selectedUsers.has(userItem.id) ? 'bg-destructive/5' : ''}>
-                    <TableCell>
-                      {isSelectable ? (
-                        <Checkbox
-                          checked={selectedUsers.has(userItem.id)}
-                          onCheckedChange={() => toggleUserSelection(userItem.id)}
-                        />
-                      ) : (
-                        <div className="w-4" />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-9 w-9">
-                          <AvatarImage src={userItem.avatar_url || undefined} />
-                          <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                            {getInitials(userItem.full_name, userItem.email)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <div className="font-medium">{userItem.full_name || 'No name'}</div>
-                          <div className="text-sm text-muted-foreground">{userItem.email}</div>
+      <main className="container mx-auto px-4 py-8 space-y-8">
+        {/* Active Users Section */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Active Users ({activeUsers.length})</h2>
+          <div className="rounded-lg border border-border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={allSelectableSelected && selectableUsers.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                      disabled={selectableUsers.length === 0}
+                    />
+                  </TableHead>
+                  <TableHead>User</TableHead>
+                  <TableHead>House #</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>First Login</TableHead>
+                  <TableHead>Last Sign In</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      <Eye className="h-4 w-4" />
+                      Read
+                    </div>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      <Upload className="h-4 w-4" />
+                      Upload
+                    </div>
+                  </TableHead>
+                  <TableHead className="text-center w-24">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {activeUsers.map(userItem => {
+                  const isSelectable = !userItem.isAdmin && userItem.id !== user?.id;
+                  const isPending = !userItem.isAdmin && !userItem.canReadFiles && !userItem.canUploadFiles;
+                  return (
+                    <TableRow key={userItem.id} className={selectedUsers.has(userItem.id) ? 'bg-destructive/5' : ''}>
+                      <TableCell>
+                        {isSelectable ? (
+                          <Checkbox
+                            checked={selectedUsers.has(userItem.id)}
+                            onCheckedChange={() => toggleUserSelection(userItem.id)}
+                          />
+                        ) : (
+                          <div className="w-4" />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-9 w-9">
+                            <AvatarImage src={userItem.avatar_url || undefined} />
+                            <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                              {getInitials(userItem.full_name, userItem.email)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium">{userItem.full_name || 'No name'}</div>
+                            <div className="text-sm text-muted-foreground">{userItem.email}</div>
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm font-medium">
-                        {userItem.house_number || '-'}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm">
-                        {userItem.whatsapp_number || '-'}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground">
-                        {formatDate(userItem.first_login)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground">
-                        {formatDate(userItem.last_sign_in)}
-                      </span>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(userItem)}</TableCell>
-                    <TableCell className="text-center">
-                      {userItem.isAdmin ? (
-                        <Check className="h-5 w-5 text-primary mx-auto" />
-                      ) : (
-                        <Switch
-                          checked={userItem.canReadFiles}
-                          onCheckedChange={() =>
-                            togglePermission(userItem.id, 'read_files', userItem.canReadFiles)
-                          }
-                          disabled={updating === `${userItem.id}-read_files`}
-                        />
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {userItem.isAdmin ? (
-                        <Check className="h-5 w-5 text-primary mx-auto" />
-                      ) : (
-                        <Switch
-                          checked={userItem.canUploadFiles}
-                          onCheckedChange={() =>
-                            togglePermission(userItem.id, 'upload_files', userItem.canUploadFiles)
-                          }
-                          disabled={updating === `${userItem.id}-upload_files`}
-                        />
-                      )}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm font-medium">
+                          {userItem.house_number || '-'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">
+                          {userItem.whatsapp_number || '-'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(userItem.first_login)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(userItem.last_sign_in)}
+                        </span>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(userItem)}</TableCell>
+                      <TableCell className="text-center">
+                        {userItem.isAdmin ? (
+                          <Check className="h-5 w-5 text-primary mx-auto" />
+                        ) : (
+                          <Switch
+                            checked={userItem.canReadFiles}
+                            onCheckedChange={() =>
+                              togglePermission(userItem.id, 'read_files', userItem.canReadFiles)
+                            }
+                            disabled={updating === `${userItem.id}-read_files`}
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {userItem.isAdmin ? (
+                          <Check className="h-5 w-5 text-primary mx-auto" />
+                        ) : (
+                          <Switch
+                            checked={userItem.canUploadFiles}
+                            onCheckedChange={() =>
+                              togglePermission(userItem.id, 'upload_files', userItem.canUploadFiles)
+                            }
+                            disabled={updating === `${userItem.id}-upload_files`}
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {!userItem.isAdmin && isPending && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => rejectUser(userItem.id)}
+                            disabled={updating === `${userItem.id}-reject`}
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {activeUsers.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                      No active users found
                     </TableCell>
                   </TableRow>
-                );
-              })}
-              {users.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                    No users found
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
+
+        {/* Rejected Users Section */}
+        {rejectedUsers.length > 0 && (
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold text-destructive">Rejected Users ({rejectedUsers.length})</h2>
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead>House #</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>First Login</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-center w-24">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rejectedUsers.map(userItem => (
+                    <TableRow key={userItem.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-9 w-9">
+                            <AvatarImage src={userItem.avatar_url || undefined} />
+                            <AvatarFallback className="text-xs bg-destructive/10 text-destructive">
+                              {getInitials(userItem.full_name, userItem.email)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium">{userItem.full_name || 'No name'}</div>
+                            <div className="text-sm text-muted-foreground">{userItem.email}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm font-medium">
+                          {userItem.house_number || '-'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">
+                          {userItem.whatsapp_number || '-'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(userItem.first_login)}
+                        </span>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(userItem)}</TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => unrejectUser(userItem.id)}
+                          disabled={updating === `${userItem.id}-unreject`}
+                          className="text-primary hover:text-primary hover:bg-primary/10"
+                          title="Restore to pending"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
       </main>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

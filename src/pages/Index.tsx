@@ -5,6 +5,7 @@ import { FileUploadModal } from '@/components/FileUploadModal';
 import { FileViewerModal } from '@/components/FileViewerModal';
 import { LoginScreen } from '@/components/LoginScreen';
 import { PendingApprovalScreen } from '@/components/PendingApprovalScreen';
+import { RejectedScreen } from '@/components/RejectedScreen';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '@/hooks/usePermissions';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,7 +39,7 @@ interface FileWithProfile {
 
 const Index = () => {
   const { user, loading: authLoading } = useAuth();
-  const { isAdmin, isApproved, canReadFiles, canUploadFiles, loading: permLoading } = usePermissions();
+  const { isAdmin, isApproved, isRejected, canReadFiles, canUploadFiles, loading: permLoading } = usePermissions();
   const { toast } = useToast();
   
   const [files, setFiles] = useState<FileWithProfile[]>([]);
@@ -247,6 +248,10 @@ const Index = () => {
 
   if (!user) {
     return <LoginScreen />;
+  }
+
+  if (isRejected) {
+    return <RejectedScreen />;
   }
 
   if (!isApproved) {

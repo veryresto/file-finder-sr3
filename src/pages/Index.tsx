@@ -49,6 +49,7 @@ const Index = () => {
   const [fileToDelete, setFileToDelete] = useState<FileWithProfile | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [hasPendingUsers, setHasPendingUsers] = useState(false);
 
   const fetchFiles = async () => {
     try {
@@ -83,6 +84,39 @@ const Index = () => {
     }
   };
 
+  const fetchPendingUsers = async () => {
+    if (!isAdmin) return;
+    
+    try {
+      // Get all profiles
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id');
+      
+      if (!profiles) return;
+      
+      // Get all user IDs that have permissions or are admin
+      const { data: permissions } = await supabase
+        .from('user_permissions')
+        .select('user_id');
+      
+      const { data: roles } = await supabase
+        .from('user_roles')
+        .select('user_id');
+      
+      const approvedUserIds = new Set([
+        ...(permissions?.map(p => p.user_id) || []),
+        ...(roles?.map(r => r.user_id) || [])
+      ]);
+      
+      // Count pending users (users without permissions and not admin)
+      const pendingCount = profiles.filter(p => !approvedUserIds.has(p.id)).length;
+      setHasPendingUsers(pendingCount > 0);
+    } catch (error) {
+      console.error('Error fetching pending users:', error);
+    }
+  };
+
   useEffect(() => {
     if (user && isApproved) {
       fetchFiles();
@@ -90,6 +124,12 @@ const Index = () => {
       setLoading(false);
     }
   }, [user, isApproved, permLoading]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchPendingUsers();
+    }
+  }, [isAdmin]);
 
   const filteredFiles = useMemo(() => {
     if (!searchQuery.trim()) return files;
@@ -221,6 +261,7 @@ const Index = () => {
         onUploadClick={() => setUploadModalOpen(true)}
         canUpload={canUploadFiles || isAdmin}
         isAdmin={isAdmin}
+        hasPendingUsers={hasPendingUsers}
       />
 
       <main className="container px-4 md:px-6 py-8">

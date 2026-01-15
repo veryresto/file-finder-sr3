@@ -101,8 +101,8 @@ export function FileViewerModal({ file, searchQuery, open, onOpenChange }: FileV
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col">
-        <DialogHeader className="flex-shrink-0">
+      <DialogContent className="sm:max-w-4xl w-[95vw] h-[90vh] max-h-[90vh] flex flex-col p-0">
+        <DialogHeader className="flex-shrink-0 p-6 pb-4 border-b">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -134,10 +134,12 @@ export function FileViewerModal({ file, searchQuery, open, onOpenChange }: FileV
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 -mx-6 px-6">
-          <pre className="text-sm font-mono whitespace-pre-wrap break-words bg-muted/50 rounded-lg p-4 leading-relaxed">
-            {file.content ? highlightMatches(file.content, searchQuery) : 'No content available'}
-          </pre>
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="p-6">
+            <pre className="text-sm font-mono whitespace-pre-wrap break-words bg-muted/50 rounded-lg p-4 leading-relaxed">
+              {file.content ? highlightMatches(file.content, searchQuery) : 'No content available'}
+            </pre>
+          </div>
         </ScrollArea>
       </DialogContent>
     </Dialog>

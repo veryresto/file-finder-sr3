@@ -5,6 +5,7 @@ import { useAuth } from './useAuth';
 interface Permissions {
   isAdmin: boolean;
   isApproved: boolean;
+  isRejected: boolean;
   canReadFiles: boolean;
   canUploadFiles: boolean;
   loading: boolean;
@@ -13,6 +14,7 @@ interface Permissions {
 export function usePermissions(): Permissions {
   const { user } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isRejected, setIsRejected] = useState(false);
   const [canReadFiles, setCanReadFiles] = useState(false);
   const [canUploadFiles, setCanUploadFiles] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -20,6 +22,7 @@ export function usePermissions(): Permissions {
   useEffect(() => {
     if (!user) {
       setIsAdmin(false);
+      setIsRejected(false);
       setCanReadFiles(false);
       setCanUploadFiles(false);
       setLoading(false);
@@ -43,6 +46,7 @@ export function usePermissions(): Permissions {
           // Admins have all permissions
           setCanReadFiles(true);
           setCanUploadFiles(true);
+          setIsRejected(false);
         } else {
           // Check specific permissions
           const { data: permData } = await supabase
@@ -51,6 +55,7 @@ export function usePermissions(): Permissions {
             .eq('user_id', user.id);
 
           const permissions = permData?.map(p => p.permission) || [];
+          setIsRejected(permissions.includes('rejected'));
           setCanReadFiles(permissions.includes('read_files'));
           setCanUploadFiles(permissions.includes('upload_files'));
         }
@@ -66,5 +71,5 @@ export function usePermissions(): Permissions {
 
   const isApproved = isAdmin || canReadFiles || canUploadFiles;
 
-  return { isAdmin, isApproved, canReadFiles, canUploadFiles, loading };
+  return { isAdmin, isApproved, isRejected, canReadFiles, canUploadFiles, loading };
 }

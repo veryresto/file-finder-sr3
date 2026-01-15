@@ -11,6 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 interface FileWithProfile {
   id: string;
@@ -36,6 +37,7 @@ interface FileViewerModalProps {
 
 export function FileViewerModal({ file, searchQuery, open, onOpenChange }: FileViewerModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
 
   if (!file) return null;
 
@@ -68,6 +70,17 @@ export function FileViewerModal({ file, searchQuery, open, onOpenChange }: FileV
         .download(file.storage_path);
 
       if (error) throw error;
+
+      // Log the download activity
+      if (user) {
+        await supabase.from('activity_logs').insert({
+          user_id: user.id,
+          action: 'download',
+          resource_type: 'file',
+          resource_id: file.id,
+          resource_name: file.name,
+        });
+      }
 
       const url = URL.createObjectURL(data);
       const a = document.createElement('a');

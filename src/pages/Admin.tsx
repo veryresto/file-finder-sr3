@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Shield, Upload, Eye, Trash2, XCircle, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Check, Shield, Upload, Eye, Trash2, XCircle, RotateCcw, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -446,17 +446,28 @@ export default function Admin() {
               <h1 className="text-xl font-semibold">User Management</h1>
             </div>
           </div>
-          {selectedUsers.size > 0 && (
+          <div className="flex items-center gap-2">
             <Button
-              variant="destructive"
+              variant="outline"
               size="sm"
-              onClick={() => setShowDeleteDialog(true)}
+              onClick={() => navigate('/activity')}
               className="gap-2"
             >
-              <Trash2 className="h-4 w-4" />
-              Delete ({selectedUsers.size})
+              <Activity className="h-4 w-4" />
+              Activity Log
             </Button>
-          )}
+            {selectedUsers.size > 0 && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowDeleteDialog(true)}
+                className="gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete ({selectedUsers.size})
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 

@@ -39,6 +39,7 @@ interface UserWithPermissions {
   created_at: string;
   first_login: string | null;
   last_sign_in: string | null;
+  last_active_at: string | null;
   isAdmin: boolean;
   isRejected: boolean;
   canReadFiles: boolean;

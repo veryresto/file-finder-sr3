@@ -556,7 +556,7 @@ export default function Admin() {
                       </TableCell>
                       <TableCell>
                         <span className="text-xs text-muted-foreground">
-                          {formatDate(userItem.last_sign_in)}
+                          {formatDate(userItem.last_active_at)}
                         </span>
                       </TableCell>
                       <TableCell>{getStatusBadge(userItem)}</TableCell>

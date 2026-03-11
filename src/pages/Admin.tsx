@@ -492,7 +492,7 @@ export default function Admin() {
                   <TableHead>House #</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>First Login</TableHead>
-                  <TableHead>Last Sign In</TableHead>
+                  <TableHead>Last Active</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-center">
                     <div className="flex items-center justify-center gap-1">

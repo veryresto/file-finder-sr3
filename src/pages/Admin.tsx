@@ -39,6 +39,7 @@ interface UserWithPermissions {
   created_at: string;
   first_login: string | null;
   last_sign_in: string | null;
+  last_active_at: string | null;
   isAdmin: boolean;
   isRejected: boolean;
   canReadFiles: boolean;
@@ -107,11 +108,12 @@ export default function Admin() {
           email: profile.email,
           full_name: profile.full_name,
           avatar_url: profile.avatar_url,
-          house_number: profile.house_number,
-          whatsapp_number: profile.whatsapp_number,
+          house_number: (profile as any).house_number,
+          whatsapp_number: (profile as any).whatsapp_number,
           created_at: profile.created_at,
           first_login: authInfo.first_login,
           last_sign_in: authInfo.last_sign_in,
+          last_active_at: (profile as any).last_active_at || null,
           isAdmin: userRoles.some(r => r.role === 'admin'),
           isRejected: userPerms.some(p => p.permission === 'rejected'),
           canReadFiles: userPerms.some(p => p.permission === 'read_files'),
@@ -490,7 +492,7 @@ export default function Admin() {
                   <TableHead>House #</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>First Login</TableHead>
-                  <TableHead>Last Sign In</TableHead>
+                  <TableHead>Last Active</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-center">
                     <div className="flex items-center justify-center gap-1">
@@ -554,7 +556,7 @@ export default function Admin() {
                       </TableCell>
                       <TableCell>
                         <span className="text-xs text-muted-foreground">
-                          {formatDate(userItem.last_sign_in)}
+                          {formatDate(userItem.last_active_at)}
                         </span>
                       </TableCell>
                       <TableCell>{getStatusBadge(userItem)}</TableCell>

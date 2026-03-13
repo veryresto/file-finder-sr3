@@ -70,7 +70,7 @@ const Index = () => {
             avatar_url
           )
         `)
-        .order('name', { ascending: true });
+        .order('name', { ascending: false });
 
       if (error) throw error;
       setFiles(data || []);

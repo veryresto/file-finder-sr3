@@ -41,7 +41,7 @@ const Index = () => {
   const { user, loading: authLoading } = useAuth();
   const { isAdmin, isApproved, isRejected, canReadFiles, canUploadFiles, loading: permLoading } = usePermissions();
   const { toast } = useToast();
-  
+
   const [files, setFiles] = useState<FileWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,7 +70,7 @@ const Index = () => {
             avatar_url
           )
         `)
-        .order('created_at', { ascending: false });
+        .order('name', { ascending: true });
 
       if (error) throw error;
       setFiles(data || []);
@@ -87,29 +87,29 @@ const Index = () => {
 
   const fetchPendingUsers = async () => {
     if (!isAdmin) return;
-    
+
     try {
       // Get all profiles
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id');
-      
+
       if (!profiles) return;
-      
+
       // Get all user IDs that have permissions or are admin
       const { data: permissions } = await supabase
         .from('user_permissions')
         .select('user_id');
-      
+
       const { data: roles } = await supabase
         .from('user_roles')
         .select('user_id');
-      
+
       const approvedUserIds = new Set([
         ...(permissions?.map(p => p.user_id) || []),
         ...(roles?.map(r => r.user_id) || [])
       ]);
-      
+
       // Count pending users (users without permissions and not admin)
       const pendingCount = profiles.filter(p => !approvedUserIds.has(p.id)).length;
       setHasPendingUsers(pendingCount > 0);
@@ -134,9 +134,9 @@ const Index = () => {
 
   const filteredFiles = useMemo(() => {
     if (!searchQuery.trim()) return files;
-    
+
     const query = searchQuery.toLowerCase();
-    return files.filter(file => 
+    return files.filter(file =>
       file.name.toLowerCase().includes(query) ||
       file.content?.toLowerCase().includes(query)
     );

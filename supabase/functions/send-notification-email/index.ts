@@ -19,7 +19,7 @@ const CONFIG = {
   // Email sender configuration
   // Note: For production, use a verified domain in Resend
   // For testing, you can use "onboarding@resend.dev" 
-  FROM_EMAIL: "Warga RT02 <onboarding@resend.dev>",
+  FROM_EMAIL: "IPL Finder <onboarding@resend.dev>",
 
   // Email subjects
   NEW_USER_SUBJECT: "New User Registration - Pending Approval",

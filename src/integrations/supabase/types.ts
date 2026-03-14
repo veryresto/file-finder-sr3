@@ -99,6 +99,7 @@ export type Database = {
           full_name: string | null
           house_number: string | null
           id: string
+          last_active_at: string | null
           updated_at: string
           whatsapp_number: string | null
         }
@@ -109,6 +110,7 @@ export type Database = {
           full_name?: string | null
           house_number?: string | null
           id: string
+          last_active_at?: string | null
           updated_at?: string
           whatsapp_number?: string | null
         }
@@ -119,6 +121,7 @@ export type Database = {
           full_name?: string | null
           house_number?: string | null
           id?: string
+          last_active_at?: string | null
           updated_at?: string
           whatsapp_number?: string | null
         }

@@ -146,7 +146,7 @@ export default function Admin() {
 
       // Only send notification if this is their first approval (going from 0 to 1+ permissions)
       const hadNoPermissions = !userItem.canReadFiles && !userItem.canUploadFiles;
-      
+
       if (hadNoPermissions && userItem.email) {
         console.log('Sending approval notification to:', userItem.email);
         await supabase.functions.invoke('send-notification-email', {
@@ -171,7 +171,7 @@ export default function Admin() {
   ) => {
     setUpdating(`${userId}-${permission}`);
     const userItem = users.find(u => u.id === userId);
-    
+
     try {
       if (currentValue) {
         // Remove permission
@@ -232,7 +232,7 @@ export default function Admin() {
 
   const rejectUser = async (userId: string) => {
     setUpdating(`${userId}-reject`);
-    
+
     try {
       // Remove all existing permissions first
       await supabase
@@ -250,6 +250,24 @@ export default function Admin() {
         });
 
       if (error) throw error;
+
+      // Send rejection notification
+      const userItem = users.find(u => u.id === userId);
+      if (userItem && userItem.email) {
+        console.log('Sending rejection notification to:', userItem.email);
+        try {
+          await supabase.functions.invoke('send-notification-email', {
+            body: {
+              type: 'user_rejected',
+              userEmail: userItem.email,
+              userName: userItem.full_name,
+            },
+          });
+        } catch (notifError) {
+          console.error('Failed to send rejection notification:', notifError);
+          // Don't throw - notification failure shouldn't block the rejection
+        }
+      }
 
       // Update local state
       setUsers(prev =>
@@ -284,7 +302,7 @@ export default function Admin() {
 
   const unrejectUser = async (userId: string) => {
     setUpdating(`${userId}-unreject`);
-    
+
     try {
       // Remove rejected permission
       const { error } = await supabase
@@ -351,7 +369,7 @@ export default function Admin() {
   // Selectable users are non-admins and not the current user
   // Selectable users are non-admins, not rejected, and not the current user
   const selectableUsers = users.filter(u => !u.isAdmin && !u.isRejected && u.id !== user?.id);
-  const allSelectableSelected = selectableUsers.length > 0 && 
+  const allSelectableSelected = selectableUsers.length > 0 &&
     selectableUsers.every(u => selectedUsers.has(u.id));
 
   const toggleUserSelection = (userId: string) => {
@@ -376,7 +394,7 @@ export default function Admin() {
 
   const handleBulkDelete = async () => {
     if (selectedUsers.size === 0) return;
-    
+
     setDeleting(true);
     try {
       const { data, error } = await supabase.functions.invoke('delete-users', {

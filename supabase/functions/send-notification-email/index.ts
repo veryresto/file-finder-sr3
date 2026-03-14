@@ -11,6 +11,7 @@ const CONFIG = {
   // Enable/disable email notifications
   ENABLE_NEW_USER_NOTIFICATION: true,  // Notify admin when new user registers
   ENABLE_APPROVAL_NOTIFICATION: true,   // Notify user when approved by admin
+  ENABLE_REJECTION_NOTIFICATION: true,  // Notify user when rejected by admin
 
   // Admin email to receive new user notifications
   ADMIN_EMAIL: "veryresto@gmail.com",
@@ -23,6 +24,7 @@ const CONFIG = {
   // Email subjects
   NEW_USER_SUBJECT: "New User Registration - Pending Approval",
   APPROVAL_SUBJECT: "Your Account Has Been Approved!",
+  REJECTION_SUBJECT: "Update on Your Account Status",
 
   // App name for email content
   APP_NAME: "Warga RT02",
@@ -61,7 +63,7 @@ const corsHeaders = {
 };
 
 interface EmailRequest {
-  type: "new_user" | "user_approved";
+  type: "new_user" | "user_approved" | "user_rejected";
   userEmail: string;
   userName?: string;
   houseNumber?: string;
@@ -148,6 +150,41 @@ const generateApprovalEmailHtml = (userName: string, permissions: string[]): str
   `;
 };
 
+const generateRejectionEmailHtml = (userName: string): string => {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; }
+        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+        .info-box { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ef4444; }
+        .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin: 0;">Account Status Update</h1>
+        </div>
+        <div class="content">
+          <p>Hi ${userName || "there"},</p>
+          <div class="info-box">
+            <p>We are writing to inform you that your request for access to <strong>${CONFIG.APP_NAME}</strong> has been declined by an administrator.</p>
+          </div>
+          <p>If you believe this is a mistake or have any questions, please contact the administrators for further details.</p>
+          <div class="footer">
+            <p>Thank you for your interest in ${CONFIG.APP_NAME}.</p>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
 serve(async (req: Request): Promise<Response> => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -198,6 +235,29 @@ serve(async (req: Request): Promise<Response> => {
       );
 
       console.log("User approval notification sent:", emailResponse);
+
+      return new Response(JSON.stringify({ success: true, data: emailResponse }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (type === "user_rejected") {
+      if (!CONFIG.ENABLE_REJECTION_NOTIFICATION) {
+        console.log("Rejection notifications are disabled");
+        return new Response(JSON.stringify({ success: true, message: "Notifications disabled" }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const emailResponse = await sendEmail(
+        [userEmail],
+        CONFIG.REJECTION_SUBJECT,
+        generateRejectionEmailHtml(userName || "")
+      );
+
+      console.log("User rejection notification sent:", emailResponse);
 
       return new Response(JSON.stringify({ success: true, data: emailResponse }), {
         status: 200,

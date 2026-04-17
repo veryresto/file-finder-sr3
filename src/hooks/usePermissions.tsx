@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
 interface Permissions {
@@ -11,8 +10,10 @@ interface Permissions {
   loading: boolean;
 }
 
+const EDGE_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+
 export function usePermissions(): Permissions {
-  const { user } = useAuth();
+  const { user, getToken, loading: authLoading } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [isRejected, setIsRejected] = useState(false);
   const [canReadFiles, setCanReadFiles] = useState(false);
@@ -20,6 +21,8 @@ export function usePermissions(): Permissions {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (authLoading) return;
+
     if (!user) {
       setIsAdmin(false);
       setIsRejected(false);
@@ -31,30 +34,23 @@ export function usePermissions(): Permissions {
 
     const fetchPermissions = async () => {
       try {
-        // Check if user is admin
-        const { data: roleData } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user.id)
-          .eq('role', 'admin')
-          .maybeSingle();
+        const token = await getToken();
+        const res = await fetch(`${EDGE_BASE}/get-my-permissions`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-        const adminStatus = !!roleData;
-        setIsAdmin(adminStatus);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-        if (adminStatus) {
-          // Admins have all permissions
+        const { roles, permissions } = await res.json();
+
+        const admin = roles.includes('admin');
+        setIsAdmin(admin);
+
+        if (admin) {
           setCanReadFiles(true);
           setCanUploadFiles(true);
           setIsRejected(false);
         } else {
-          // Check specific permissions
-          const { data: permData } = await supabase
-            .from('user_permissions')
-            .select('permission')
-            .eq('user_id', user.id);
-
-          const permissions = permData?.map(p => p.permission) || [];
           setIsRejected(permissions.includes('rejected'));
           setCanReadFiles(permissions.includes('read_files'));
           setCanUploadFiles(permissions.includes('upload_files'));
@@ -67,7 +63,7 @@ export function usePermissions(): Permissions {
     };
 
     fetchPermissions();
-  }, [user]);
+  }, [user, authLoading]);
 
   const isApproved = isAdmin || canReadFiles || canUploadFiles;
 

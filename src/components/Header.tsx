@@ -84,11 +84,11 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
               <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                 <Avatar className="h-9 w-9">
                   <AvatarImage
-                    src={user?.user_metadata?.avatar_url}
-                    alt={user?.user_metadata?.full_name || user?.email || "User"}
+                    src={user?.avatarUrl ?? undefined}
+                    alt={user?.fullName || user?.email || "User"}
                   />
                   <AvatarFallback className="bg-primary/10 text-primary">
-                    {getInitials(user?.user_metadata?.full_name, user?.email)}
+                    {getInitials(user?.fullName, user?.email)}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -96,13 +96,13 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
             <DropdownMenuContent className="w-56" align="end" forceMount>
               <div className="flex items-center gap-2 p-2">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src={user?.user_metadata?.avatar_url} />
+                  <AvatarImage src={user?.avatarUrl ?? undefined} />
                   <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                    {getInitials(user?.user_metadata?.full_name, user?.email)}
+                    {getInitials(user?.fullName, user?.email)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col space-y-0.5">
-                  <p className="text-sm font-medium">{user?.user_metadata?.full_name || "User"}</p>
+                  <p className="text-sm font-medium">{user?.fullName || "User"}</p>
                   <p className="text-xs text-muted-foreground truncate max-w-[180px]">{user?.email}</p>
                 </div>
               </div>

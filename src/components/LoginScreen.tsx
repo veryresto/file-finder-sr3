@@ -1,18 +1,23 @@
 import { useState } from "react";
 import { FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/useAuth";
+import { useSignIn } from "@clerk/clerk-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function LoginScreen() {
-  const { signInWithGoogle } = useAuth();
+  const { signIn, isLoaded } = useSignIn();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
   const handleGoogleSignIn = async () => {
+    if (!isLoaded) return;
     setLoading(true);
     try {
-      await signInWithGoogle();
+      await signIn.authenticateWithRedirect({
+        strategy: "oauth_google",
+        redirectUrl: `${window.location.origin}/sso-callback`,
+        redirectUrlComplete: `${window.location.origin}/`,
+      });
     } catch (error: any) {
       toast({
         title: "Sign in failed",
@@ -40,7 +45,7 @@ export function LoginScreen() {
           <h2 className="text-lg font-semibold text-center mb-2">Welcome back</h2>
           <p className="text-sm text-muted-foreground text-center mb-6">Sign in to access your documents</p>
 
-          <Button variant="outline" className="w-full h-12 text-base" onClick={handleGoogleSignIn} disabled={loading}>
+          <Button variant="outline" className="w-full h-12 text-base" onClick={handleGoogleSignIn} disabled={loading || !isLoaded}>
             {loading ? (
               <Loader2 className="h-5 w-5 animate-spin" />
             ) : (

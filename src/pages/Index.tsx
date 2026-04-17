@@ -8,7 +8,6 @@ import { PendingApprovalScreen } from '@/components/PendingApprovalScreen';
 import { RejectedScreen } from '@/components/RejectedScreen';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '@/hooks/usePermissions';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import {
@@ -21,6 +20,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+
+const EDGE_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 interface FileWithProfile {
   id: string;
@@ -38,7 +39,7 @@ interface FileWithProfile {
 }
 
 const Index = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, getToken } = useAuth();
   const { isAdmin, isApproved, isRejected, canReadFiles, canUploadFiles, loading: permLoading } = usePermissions();
   const { toast } = useToast();
 
@@ -54,25 +55,12 @@ const Index = () => {
 
   const fetchFiles = async () => {
     try {
-      const { data, error } = await supabase
-        .from('files')
-        .select(`
-          id,
-          name,
-          storage_path,
-          content,
-          file_size,
-          created_at,
-          uploader_id,
-          profiles (
-            email,
-            full_name,
-            avatar_url
-          )
-        `)
-        .order('name', { ascending: false });
-
-      if (error) throw error;
+      const token = await getToken();
+      const res = await fetch(`${EDGE_BASE}/list-files`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { files: data } = await res.json();
       setFiles(data || []);
     } catch (error: any) {
       toast({
@@ -87,32 +75,14 @@ const Index = () => {
 
   const fetchPendingUsers = async () => {
     if (!isAdmin) return;
-
     try {
-      // Get all profiles
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id');
-
-      if (!profiles) return;
-
-      // Get all user IDs that have permissions or are admin
-      const { data: permissions } = await supabase
-        .from('user_permissions')
-        .select('user_id');
-
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('user_id');
-
-      const approvedUserIds = new Set([
-        ...(permissions?.map(p => p.user_id) || []),
-        ...(roles?.map(r => r.user_id) || [])
-      ]);
-
-      // Count pending users (users without permissions and not admin)
-      const pendingCount = profiles.filter(p => !approvedUserIds.has(p.id)).length;
-      setHasPendingUsers(pendingCount > 0);
+      const token = await getToken();
+      const res = await fetch(`${EDGE_BASE}/get-pending-users`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const { hasPending } = await res.json();
+      setHasPendingUsers(hasPending);
     } catch (error) {
       console.error('Error fetching pending users:', error);
     }
@@ -146,20 +116,20 @@ const Index = () => {
     if (!fileToDelete) return;
 
     try {
-      // Delete from storage
-      const { error: storageError } = await supabase.storage
-        .from('text-files')
-        .remove([fileToDelete.storage_path]);
+      const token = await getToken();
+      const res = await fetch(`${EDGE_BASE}/delete-file`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ fileId: fileToDelete.id }),
+      });
 
-      if (storageError) throw storageError;
-
-      // Delete from database
-      const { error: dbError } = await supabase
-        .from('files')
-        .delete()
-        .eq('id', fileToDelete.id);
-
-      if (dbError) throw dbError;
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Delete failed (${res.status})`);
+      }
 
       toast({
         title: 'File deleted',
@@ -182,23 +152,20 @@ const Index = () => {
     if (selectedFiles.size === 0) return;
 
     try {
-      const filesToDelete = files.filter(f => selectedFiles.has(f.id));
-      const storagePaths = filesToDelete.map(f => f.storage_path);
+      const token = await getToken();
+      const res = await fetch(`${EDGE_BASE}/delete-file`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ fileIds: Array.from(selectedFiles) }),
+      });
 
-      // Delete from storage
-      const { error: storageError } = await supabase.storage
-        .from('text-files')
-        .remove(storagePaths);
-
-      if (storageError) throw storageError;
-
-      // Delete from database
-      const { error: dbError } = await supabase
-        .from('files')
-        .delete()
-        .in('id', Array.from(selectedFiles));
-
-      if (dbError) throw dbError;
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Delete failed (${res.status})`);
+      }
 
       toast({
         title: 'Files deleted',

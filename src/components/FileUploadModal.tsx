@@ -9,8 +9,9 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+
+const EDGE_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 interface FileUploadModalProps {
   open: boolean;
@@ -23,7 +24,7 @@ export function FileUploadModal({ open, onOpenChange, onUploadComplete }: FileUp
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { getToken } = useAuth();
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -85,34 +86,28 @@ export function FileUploadModal({ open, onOpenChange, onUploadComplete }: FileUp
   };
 
   const uploadFiles = async () => {
-    if (!user || files.length === 0) return;
+    if (files.length === 0) return;
 
     setUploading(true);
 
     try {
+      const token = await getToken();
+
       for (const file of files) {
-        // Read file content
-        const content = await file.text();
-        
-        // Upload to storage
-        const storagePath = `${user.id}/${Date.now()}-${file.name}`;
-        const { error: storageError } = await supabase.storage
-          .from('text-files')
-          .upload(storagePath, file);
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('name', file.name);
 
-        if (storageError) throw storageError;
-
-        // Insert file record with content for search
-        const { error: dbError } = await supabase.from('files').insert({
-          name: file.name,
-          storage_path: storagePath,
-          content: content,
-          uploader_id: user.id,
-          file_size: file.size,
-          mime_type: file.type || 'text/plain',
+        const res = await fetch(`${EDGE_BASE}/upload-file`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
         });
 
-        if (dbError) throw dbError;
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `Upload failed with status ${res.status}`);
+        }
       }
 
       toast({
@@ -157,8 +152,8 @@ export function FileUploadModal({ open, onOpenChange, onUploadComplete }: FileUp
           className={`
             relative flex flex-col items-center justify-center
             h-48 rounded-lg border-2 border-dashed transition-colors cursor-pointer
-            ${isDragOver 
-              ? 'border-primary bg-primary/5' 
+            ${isDragOver
+              ? 'border-primary bg-primary/5'
               : 'border-border hover:border-primary/50 hover:bg-accent/30'
             }
           `}

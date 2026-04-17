@@ -1,68 +1,59 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { createContext, useContext, ReactNode } from 'react';
+import {
+  useUser,
+  useAuth as useClerkAuth,
+  useClerk,
+} from '@clerk/clerk-react';
 
+// Shape kept compatible with previous Supabase-based AuthContext
+// so all call sites need minimal rewiring.
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  /** Clerk User object (or null if signed out) */
+  user: {
+    id: string;
+    email: string | null;
+    fullName: string | null;
+    avatarUrl: string | null;
+  } | null;
   loading: boolean;
-  signInWithGoogle: () => Promise<void>;
+  /** Returns a short-lived Clerk JWT to attach to Edge Function requests */
+  getToken: () => Promise<string | null>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user: clerkUser, isLoaded } = useUser();
+  const { getToken: clerkGetToken } = useClerkAuth();
+  const clerk = useClerk();
 
-  useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+  const user = clerkUser
+    ? {
+        id: clerkUser.id,
+        email: clerkUser.primaryEmailAddress?.emailAddress ?? null,
+        fullName: clerkUser.fullName ?? null,
+        avatarUrl: clerkUser.imageUrl ?? null,
       }
-    );
+    : null;
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-
-      // Track last activity on app open
-      if (session?.user) {
-        supabase
-          .from('profiles')
-          .update({ last_active_at: new Date().toISOString() } as any)
-          .eq('id', session.user.id)
-          .then();
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/`,
-      },
-    });
-    if (error) throw error;
+  const getToken = async (): Promise<string | null> => {
+    return clerkGetToken();
   };
 
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+  const signOut = async (): Promise<void> => {
+    await clerk.signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signInWithGoogle, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading: !isLoaded,
+        getToken,
+        signOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

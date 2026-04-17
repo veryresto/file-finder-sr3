@@ -1,142 +1,103 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  verifyClerkToken,
+  getServiceClient,
+  assertAdmin,
+  upsertProfile,
+  handleCors,
+  jsonResponse,
+  errorResponse,
+} from "../_shared/clerkAuth.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const CLERK_SECRET_KEY = Deno.env.get("CLERK_SECRET_KEY") ?? "";
 
 interface DeleteUsersRequest {
   userIds: string[];
 }
 
-serve(async (req: Request): Promise<Response> => {
-  // Handle CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+serve(async (req): Promise<Response> => {
+  const cors = handleCors(req);
+  if (cors) return cors;
 
   try {
-    // Create admin client with service role key
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
+    const identity = await verifyClerkToken(req);
+    const db = getServiceClient();
 
-    // Get the requesting user from the authorization header
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "No authorization header" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Verify the requesting user is an admin
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user: requestingUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    
-    if (authError || !requestingUser) {
-      return new Response(
-        JSON.stringify({ error: "Invalid authorization" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Check if requesting user is admin
-    const { data: adminRole } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", requestingUser.id)
-      .eq("role", "admin")
-      .single();
-
-    if (!adminRole) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized: Admin access required" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    await upsertProfile(identity, db);
+    await assertAdmin(identity, db);
 
     const { userIds }: DeleteUsersRequest = await req.json();
 
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "No user IDs provided" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ error: "No user IDs provided" }, 400);
     }
 
     // Prevent admin from deleting themselves
-    if (userIds.includes(requestingUser.id)) {
-      return new Response(
-        JSON.stringify({ error: "Cannot delete your own account" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (userIds.includes(identity.sub)) {
+      return jsonResponse({ error: "Cannot delete your own account" }, 400);
     }
 
-    console.log(`Admin ${requestingUser.email} is deleting users:`, userIds);
+    console.log(`Admin ${identity.email} is deleting users:`, userIds);
 
     const results: { userId: string; success: boolean; error?: string }[] = [];
 
     for (const userId of userIds) {
       try {
-        // Check if target user is an admin (prevent deleting other admins)
-        const { data: targetAdminRole } = await supabaseAdmin
+        // Prevent deleting other admins
+        const { data: targetAdminRole } = await db
           .from("user_roles")
           .select("role")
           .eq("user_id", userId)
           .eq("role", "admin")
-          .single();
+          .maybeSingle();
 
         if (targetAdminRole) {
           results.push({ userId, success: false, error: "Cannot delete admin users" });
           continue;
         }
 
-        // Delete user from auth.users (this cascades to profiles, permissions, roles)
-        const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+        // Delete from Clerk via Admin API
+        const clerkRes = await fetch(`https://api.clerk.com/v1/users/${userId}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${CLERK_SECRET_KEY}`,
+            "Content-Type": "application/json",
+          },
+        });
 
-        if (deleteError) {
-          console.error(`Error deleting user ${userId}:`, deleteError);
-          results.push({ userId, success: false, error: deleteError.message });
-        } else {
-          console.log(`Successfully deleted user ${userId}`);
-          results.push({ userId, success: true });
+        if (!clerkRes.ok) {
+          const body = await clerkRes.json().catch(() => ({}));
+          const msg = body?.errors?.[0]?.message ?? `Clerk API error ${clerkRes.status}`;
+          console.error(`Error deleting Clerk user ${userId}:`, msg);
+          results.push({ userId, success: false, error: msg });
+          continue;
         }
+
+        // Also clean up DB rows (profiles, permissions, roles)
+        // profiles cascade-delete is gone, so delete manually
+        await Promise.all([
+          db.from("user_permissions").delete().eq("user_id", userId),
+          db.from("user_roles").delete().eq("user_id", userId),
+          db.from("files").delete().eq("uploader_id", userId),
+        ]);
+        await db.from("profiles").delete().eq("id", userId);
+
+        console.log(`Successfully deleted user ${userId}`);
+        results.push({ userId, success: true });
       } catch (error: any) {
         console.error(`Error processing user ${userId}:`, error);
         results.push({ userId, success: false, error: error.message });
       }
     }
 
-    const successCount = results.filter(r => r.success).length;
-    const failCount = results.filter(r => !r.success).length;
+    const successCount = results.filter((r) => r.success).length;
+    const failCount = results.filter((r) => !r.success).length;
 
-    return new Response(
-      JSON.stringify({
-        message: `Deleted ${successCount} user(s)${failCount > 0 ? `, ${failCount} failed` : ""}`,
-        results,
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
-  } catch (error: any) {
-    console.error("Error in delete-users function:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return jsonResponse({
+      message: `Deleted ${successCount} user(s)${failCount > 0 ? `, ${failCount} failed` : ""}`,
+      results,
+    });
+  } catch (err) {
+    return errorResponse(err);
   }
 });

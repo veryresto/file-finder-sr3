@@ -149,6 +149,12 @@ Since all apps operate under the `.veryresto.com` root domain, they can share th
 6. `accounts-app` redirects the browser back to `https://ipl-finder.veryresto.com`.
 7. `ipl-finder.veryresto.com` sees the shared session cookie, initializes its local state, and queries the user's `ipl_finder.*` permissions.
 
+### Fallback Redirect Session Strategy
+In scenarios where shared cookies become inconsistent across subdomains (e.g., due to strict browser tracking protections like ITP), the architecture must fall back gracefully to ensure continuous access:
+- **Central Login Page Interstitial**: If an app fails to read the session cookie, it redirects to the central `accounts.veryresto.com` login page.
+- **Token Refresh Redirect**: If the central auth server detects an active session despite the consumer app's missing cookie, it immediately redirects back to the consumer app with a short-lived token or authorization code in the URL.
+- **Lightweight SSO Handoff**: The consumer app exchanges this URL parameter for a local session, effectively establishing a lightweight SSO flow without relying solely on cross-domain cookies.
+
 ---
 
 ## 6. Governance Model

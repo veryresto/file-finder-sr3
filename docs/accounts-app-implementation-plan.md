@@ -69,7 +69,7 @@ To prioritize minimal disruption and operational safety, the extraction will fol
 The single Supabase project will contain both shared identity tables and app-specific tables.
 
 ### Shared Platform Tables (Identity Ownership)
-- `profiles` (User metadata)
+- `profiles` (User metadata, including `approval_status` enum: `pending`, `approved`, `suspended`, `rejected`)
 - `user_roles` (Global roles like Super Admin)
 - `applications` (Registry of sibling apps)
 - `app_permissions` (Valid capabilities)
@@ -154,11 +154,14 @@ Since all apps operate under the `.veryresto.com` root domain, they can share th
 ## 6. Governance Model
 
 ### Resident Lifecycle
+
+To explicitly separate global community trust from app-specific capability assignments, a user's global standing will be tracked via a new `approval_status` enum column on the `profiles` table.
+
 1. **Unregistered**: Unknown to the system.
-2. **Pending**: Authenticated via Google, `profiles` record created, Waiting Room data collected, but lacks global approval.
-3. **Approved (Global)**: Admin grants baseline platform access.
-4. **Provisioned (App-Specific)**: Admin grants specific app permissions (e.g., `ipl_finder.read`).
-5. **Suspended/Rejected**: Global flag preventing access to any app, overriding all local app permissions.
+2. **Pending** (`profiles.approval_status = 'pending'`): Authenticated via Google, `profiles` record created, Waiting Room data collected, but lacks global approval.
+3. **Approved (Global)** (`profiles.approval_status = 'approved'`): Admin grants baseline platform trust, establishing the user as a verified community member.
+4. **Provisioned (App-Specific)**: Admin grants specific app permissions (e.g., `ipl_finder.read`) to an `approved` user.
+5. **Suspended/Rejected** (`profiles.approval_status = 'suspended'` or `'rejected'`): Global flag preventing access to any app, instantly overriding all local app permissions.
 
 ### Admin Delegation
 - **Global Admins** (`user_roles.role = 'admin'`): Can approve global residents, modify system parameters, and assign permissions across all apps.

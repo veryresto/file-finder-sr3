@@ -6,6 +6,19 @@ This document defines the strategy for safely and incrementally extracting the i
 
 The future architecture relies on a centralized identity provider sharing a Supabase backend with multiple independent applications.
 
+### Application Ownership Model
+To ensure future residents can safely build their own apps and teams can evolve independently, there is a strict separation of concerns:
+
+**Applications are responsible for:**
+- defining their own capabilities
+- maintaining their own business logic
+- securing their own tables via RLS
+
+**The platform (`community-platform`) is responsible for:**
+- assigning capabilities to users
+- resident approval
+- global governance lifecycle
+
 ### Shared Platform: `community-platform` (`community.veryresto.com`)
 This application acts as the single source of truth for identity and governance.
 **Responsibilities:**
@@ -134,7 +147,7 @@ USING ( has_namespaced_permission(auth.uid(), 'ipl_finder.upload') )
 
 ## 5. Authentication & Session Strategy
 
-Since all apps operate under the `.veryresto.com` root domain, they can share the Supabase Auth session via cookies.
+Since all apps operate under the `.veryresto.com` root domain, they intended to share the Supabase Auth session via cookies.
 
 ### Subdomain Session Sharing
 - Supabase Auth can be configured to write cookies scoped to the root domain (`Domain=.veryresto.com`).

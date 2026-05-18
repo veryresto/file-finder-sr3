@@ -1,0 +1,1 @@
+-- Placeholder empty migration to satisfy Supabase CLI history check

@@ -33,6 +33,7 @@ export function usePermissions(): Permissions {
     }
 
     const fetchPermissions = async () => {
+      setLoading(true);
       try {
         // Check if user is global admin or has ipl_finder local admin role
         const [globalAdminRes, localAdminRes] = await Promise.all([

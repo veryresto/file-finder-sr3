@@ -23,6 +23,9 @@ interface HeaderProps {
 
 export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload = true, isAdmin = false, hasPendingUsers = false }: HeaderProps) {
   const { user, signOut } = useAuth();
+  const portalUrl = window.location.hostname === 'ipl-finder.lvh.me'
+    ? 'http://community.lvh.me:5173'
+    : (import.meta.env.VITE_COMMUNITY_PLATFORM_URL || 'http://localhost:5173');
 
   const getInitials = (name?: string | null, email?: string | null) => {
     if (name) {
@@ -62,7 +65,7 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
         <div className="flex items-center gap-2">
           {isAdmin && (
             <Button variant="outline" size="sm" asChild className="gap-2 relative">
-              <a href={`${import.meta.env.VITE_COMMUNITY_PLATFORM_URL || 'http://localhost:5173'}/admin`}>
+              <a href={`${portalUrl}/admin`}>
                 <Shield className="h-4 w-4" />
                 <span className="hidden sm:inline">Admin</span>
               </a>

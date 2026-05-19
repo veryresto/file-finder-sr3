@@ -27,6 +27,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
+    // Check if access_token and refresh_token are in URL hash (SSO callback from portal)
+    const hash = window.location.hash;
+    if (hash && hash.includes('access_token=')) {
+      const params = new URLSearchParams(hash.substring(1)); // Remove the leading '#'
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+
+      if (accessToken && refreshToken) {
+        setLoading(true);
+        supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
+        }).then(({ data, error }) => {
+          if (!error && data.session) {
+            setSession(data.session);
+            setUser(data.session.user);
+          }
+          // Clean hash from URL without reloading the page
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          setLoading(false);
+        });
+        return () => subscription.unsubscribe();
+      }
+    }
+
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);

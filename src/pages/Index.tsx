@@ -11,6 +11,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,8 +40,21 @@ interface FileWithProfile {
 
 const Index = () => {
   const { user, loading: authLoading } = useAuth();
-  const { isAdmin, isApproved, isRejected, canReadFiles, canUploadFiles, loading: permLoading } = usePermissions();
+  const { isAdmin, isPlatformApproved, isApproved, isRejected, canReadFiles, canUploadFiles, loading: permLoading } = usePermissions();
   const { toast } = useToast();
+  const portalUrl = import.meta.env.VITE_COMMUNITY_PLATFORM_URL || 'http://localhost:5173';
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      window.location.replace(`${portalUrl}/?redirect_to=${encodeURIComponent(window.location.origin)}`);
+    }
+  }, [user, authLoading, portalUrl]);
+
+  useEffect(() => {
+    if (user && !permLoading && !isPlatformApproved) {
+      window.location.replace(`${portalUrl}/`);
+    }
+  }, [user, isPlatformApproved, permLoading, portalUrl]);
 
   const [files, setFiles] = useState<FileWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -247,15 +261,35 @@ const Index = () => {
   }
 
   if (!user) {
-    return <LoginScreen />;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
-  if (isRejected) {
-    return <RejectedScreen />;
+  if (!isPlatformApproved) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   if (!isApproved) {
-    return <PendingApprovalScreen />;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md w-full border border-border bg-card p-6 rounded-lg text-center shadow-lg">
+          <h2 className="text-xl font-bold mb-2 text-destructive">Access Denied</h2>
+          <p className="text-muted-foreground mb-6">
+            Your account is approved on the platform, but you do not have permission to access IPL Finder. Please contact your administrator to request access.
+          </p>
+          <Button asChild variant="outline" className="w-full">
+            <a href={`${portalUrl}/`}>Back to Hub</a>
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (

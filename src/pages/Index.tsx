@@ -40,7 +40,7 @@ interface FileWithProfile {
 
 const Index = () => {
   const { user, loading: authLoading } = useAuth();
-  const { isAdmin, isPlatformApproved, isApproved, isRejected, canReadFiles, canUploadFiles, loading: permLoading } = usePermissions();
+  const { isAdmin, isPlatformApproved, isApproved, isRejected, canReadFiles, canUploadFiles, loading: permLoading, resolvedUserId } = usePermissions();
   const { toast } = useToast();
   const portalUrl = (window.location.hostname === 'ipl-finder.localtest.me' || window.location.hostname === 'ipl-finder.lvh.me')
     ? 'http://community.localtest.me:5173'
@@ -54,10 +54,10 @@ const Index = () => {
   }, [user, authLoading, portalUrl]);
 
   useEffect(() => {
-    if (user && !permLoading && !isPlatformApproved) {
+    if (user && !permLoading && resolvedUserId === user.id && !isPlatformApproved) {
       window.location.replace(`${portalUrl}/`);
     }
-  }, [user, isPlatformApproved, permLoading, portalUrl]);
+  }, [user, isPlatformApproved, permLoading, portalUrl, resolvedUserId]);
 
   const [files, setFiles] = useState<FileWithProfile[]>([]);
   const [loading, setLoading] = useState(true);

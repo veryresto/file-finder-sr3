@@ -10,6 +10,7 @@ interface Permissions {
   canReadFiles: boolean;
   canUploadFiles: boolean;
   loading: boolean;
+  resolvedUserId: string | null;
 }
 
 export function usePermissions(): Permissions {
@@ -20,6 +21,7 @@ export function usePermissions(): Permissions {
   const [canReadFiles, setCanReadFiles] = useState(false);
   const [canUploadFiles, setCanUploadFiles] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -28,6 +30,7 @@ export function usePermissions(): Permissions {
       setIsRejected(false);
       setCanReadFiles(false);
       setCanUploadFiles(false);
+      setResolvedUserId(null);
       setLoading(false);
       return;
     }
@@ -88,6 +91,7 @@ export function usePermissions(): Permissions {
           setCanReadFiles(!!readRes.data);
           setCanUploadFiles(!!uploadRes.data);
         }
+        setResolvedUserId(user.id);
       } catch (error) {
         console.error('Error fetching permissions:', error);
       } finally {
@@ -100,5 +104,5 @@ export function usePermissions(): Permissions {
 
   const isApproved = isAdmin || canReadFiles || canUploadFiles;
 
-  return { isAdmin, isPlatformApproved, isApproved, isRejected, canReadFiles, canUploadFiles, loading };
+  return { isAdmin, isPlatformApproved, isApproved, isRejected, canReadFiles, canUploadFiles, loading, resolvedUserId };
 }

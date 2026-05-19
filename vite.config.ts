@@ -11,8 +11,10 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
     allowedHosts: [
       "ipl-finder.lvh.me",
+      "ipl-finder.localtest.me",
       "localhost"
     ]
+
   },
   plugins: [
     react(),

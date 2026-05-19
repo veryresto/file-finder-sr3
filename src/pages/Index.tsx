@@ -42,9 +42,10 @@ const Index = () => {
   const { user, loading: authLoading } = useAuth();
   const { isAdmin, isPlatformApproved, isApproved, isRejected, canReadFiles, canUploadFiles, loading: permLoading } = usePermissions();
   const { toast } = useToast();
-  const portalUrl = window.location.hostname === 'ipl-finder.lvh.me'
-    ? 'http://community.lvh.me:5173'
-    : (import.meta.env.VITE_COMMUNITY_PLATFORM_URL || 'http://localhost:5173');
+  const portalUrl = (window.location.hostname === 'ipl-finder.localtest.me' || window.location.hostname === 'ipl-finder.lvh.me')
+    ? 'http://community.localtest.me:5173'
+    : (import.meta.env.VITE_COMMUNITY_PLATFORM_URL || 'https://community.veryresto.com');
+
 
   useEffect(() => {
     if (!authLoading && !user) {

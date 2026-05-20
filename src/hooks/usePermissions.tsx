@@ -92,6 +92,13 @@ export function usePermissions(): Permissions {
           setCanUploadFiles(!!uploadRes.data);
         }
         setResolvedUserId(user.id);
+
+        console.log('[AUTH]', {
+          userId: user.id,
+          authResult: 'success',
+          approvalStatus: status,
+          route: window.location.pathname
+        });
       } catch (error) {
         console.error('Error fetching permissions:', error);
       } finally {

@@ -57,6 +57,12 @@ export default function Admin() {
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Cached app_role IDs for ipl_finder — populated on first fetchUsers
+  const [iplRoles, setIplRoles] = useState<{
+    resident: string;
+    admin: string;
+    rejected: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!permLoading && !isAdmin) {
@@ -73,34 +79,59 @@ export default function Admin() {
   const fetchUsers = async () => {
     try {
       // Fetch all data in parallel
-      const [profilesResult, rolesResult, permissionsResult, authInfoResult] = await Promise.all([
-        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-        supabase.from('user_roles').select('user_id, role'),
-        supabase.from('user_permissions').select('user_id, permission'),
-        supabase.functions.invoke('get-users-auth-info'),
-      ]);
+      const [profilesResult, rolesResult, appRolesResult, appRoleAssignmentsResult, authInfoResult] =
+        await Promise.all([
+          supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+          supabase.from('user_roles').select('user_id, role'),
+          // Fetch ipl_finder role template IDs — needed for toggle operations
+          supabase
+            .from('app_roles')
+            .select('id, name, applications!inner(slug)')
+            .eq('applications.slug', 'ipl_finder'),
+          // Fetch current user → ipl_finder app role assignments
+          supabase
+            .from('user_app_roles')
+            .select('user_id, app_role_id, app_roles!inner(name, applications!inner(slug))')
+            .eq('app_roles.applications.slug', 'ipl_finder'),
+          supabase.functions.invoke('get-users-auth-info'),
+        ]);
 
       if (profilesResult.error) throw profilesResult.error;
       if (rolesResult.error) throw rolesResult.error;
-      if (permissionsResult.error) throw permissionsResult.error;
+      if (appRolesResult.error) throw appRolesResult.error;
+      if (appRoleAssignmentsResult.error) throw appRoleAssignmentsResult.error;
 
       const profiles = profilesResult.data;
       const roles = rolesResult.data;
-      const permissions = permissionsResult.data;
+      const appRoles = appRolesResult.data || [];
+      const assignments = appRoleAssignmentsResult.data || [];
       const authUsers = authInfoResult.data?.users || [];
+
+      // Cache role template IDs for use in toggle/reject operations
+      const roleMap = Object.fromEntries(
+        appRoles.map((r: any) => [r.name, r.id])
+      ) as { resident?: string; admin?: string; rejected?: string };
+      if (roleMap.resident && roleMap.admin && roleMap.rejected) {
+        setIplRoles({
+          resident: roleMap.resident,
+          admin: roleMap.admin,
+          rejected: roleMap.rejected,
+        });
+      }
 
       // Create a map for quick auth info lookup
       const authInfoMap = new Map<string, { first_login: string | null; last_sign_in: string | null }>(
         authUsers.map((u: { id: string; created_at: string | null; last_sign_in_at: string | null }) => [
           u.id,
-          { first_login: u.created_at, last_sign_in: u.last_sign_in_at }
+          { first_login: u.created_at, last_sign_in: u.last_sign_in_at },
         ])
       );
 
-      // Combine data
+      // Combine data — derive permissions from app role assignments
       const usersWithPermissions: UserWithPermissions[] = (profiles || []).map(profile => {
         const userRoles = roles?.filter(r => r.user_id === profile.id) || [];
-        const userPerms = permissions?.filter(p => p.user_id === profile.id) || [];
+        const userAssignments = assignments.filter((a: any) => a.user_id === profile.id);
+        const assignedRoleNames = userAssignments.map((a: any) => a.app_roles?.name as string);
         const authInfo = authInfoMap.get(profile.id) || { first_login: null, last_sign_in: null };
 
         return {
@@ -115,9 +146,11 @@ export default function Admin() {
           last_sign_in: authInfo.last_sign_in,
           last_active_at: (profile as any).last_active_at || null,
           isAdmin: userRoles.some(r => r.role === 'admin'),
-          isRejected: userPerms.some(p => p.permission === 'rejected'),
-          canReadFiles: userPerms.some(p => p.permission === 'read_files'),
-          canUploadFiles: userPerms.some(p => p.permission === 'upload_files'),
+          // 'rejected' is a marker role with no permissions
+          isRejected: assignedRoleNames.includes('rejected'),
+          // 'admin' app role implies read_files + upload_files
+          canReadFiles: assignedRoleNames.includes('resident') || assignedRoleNames.includes('admin'),
+          canUploadFiles: assignedRoleNames.includes('admin'),
         };
       });
 
@@ -169,34 +202,60 @@ export default function Admin() {
     permission: 'read_files' | 'upload_files',
     currentValue: boolean
   ) => {
+    if (!iplRoles) return;
     setUpdating(`${userId}-${permission}`);
     const userItem = users.find(u => u.id === userId);
 
     try {
-      if (currentValue) {
-        // Remove permission
-        const { error } = await supabase
-          .from('user_permissions')
-          .delete()
-          .eq('user_id', userId)
-          .eq('permission', permission);
-
-        if (error) throw error;
+      if (permission === 'read_files') {
+        if (currentValue) {
+          // Turning read OFF → remove all active ipl_finder roles
+          const { error } = await supabase
+            .from('user_app_roles')
+            .delete()
+            .eq('user_id', userId)
+            .in('app_role_id', [iplRoles.resident, iplRoles.admin]);
+          if (error) throw error;
+        } else {
+          // Turning read ON → assign 'resident' only if user doesn't already have 'admin'
+          if (!userItem?.canUploadFiles) {
+            const { error } = await supabase
+              .from('user_app_roles')
+              .insert({ user_id: userId, app_role_id: iplRoles.resident, granted_by: user?.id });
+            if (error) throw error;
+            if (userItem) await sendApprovalNotification(userItem, permission);
+          }
+          // If user already has 'admin' role, they already have read — no-op
+        }
       } else {
-        // Add permission
-        const { error } = await supabase
-          .from('user_permissions')
-          .insert({
-            user_id: userId,
-            permission: permission,
-            granted_by: user?.id,
-          });
+        // upload_files
+        if (currentValue) {
+          // Turning upload OFF → remove 'admin', assign 'resident' (keep read access)
+          const { error: delError } = await supabase
+            .from('user_app_roles')
+            .delete()
+            .eq('user_id', userId)
+            .eq('app_role_id', iplRoles.admin);
+          if (delError) throw delError;
 
-        if (error) throw error;
+          const { error: insError } = await supabase
+            .from('user_app_roles')
+            .insert({ user_id: userId, app_role_id: iplRoles.resident, granted_by: user?.id });
+          if (insError) throw insError;
+        } else {
+          // Turning upload ON → remove 'resident' if present, assign 'admin'
+          await supabase
+            .from('user_app_roles')
+            .delete()
+            .eq('user_id', userId)
+            .eq('app_role_id', iplRoles.resident);
 
-        // Send approval notification if this is the user's first permission
-        if (userItem) {
-          await sendApprovalNotification(userItem, permission);
+          const { error } = await supabase
+            .from('user_app_roles')
+            .insert({ user_id: userId, app_role_id: iplRoles.admin, granted_by: user?.id });
+          if (error) throw error;
+
+          if (userItem) await sendApprovalNotification(userItem, permission);
         }
       }
 
@@ -204,11 +263,9 @@ export default function Admin() {
       setUsers(prev =>
         prev.map(u => {
           if (u.id === userId) {
-            return {
-              ...u,
-              canReadFiles: permission === 'read_files' ? !currentValue : u.canReadFiles,
-              canUploadFiles: permission === 'upload_files' ? !currentValue : u.canUploadFiles,
-            };
+            const newCanRead = permission === 'read_files' ? !currentValue : u.canReadFiles;
+            const newCanUpload = permission === 'upload_files' ? !currentValue : u.canUploadFiles;
+            return { ...u, canReadFiles: newCanRead, canUploadFiles: newCanUpload };
           }
           return u;
         })
@@ -231,23 +288,21 @@ export default function Admin() {
   };
 
   const rejectUser = async (userId: string) => {
+    if (!iplRoles) return;
     setUpdating(`${userId}-reject`);
 
     try {
-      // Remove all existing permissions first
+      // Remove any active access roles (resident + admin)
       await supabase
-        .from('user_permissions')
+        .from('user_app_roles')
         .delete()
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .in('app_role_id', [iplRoles.resident, iplRoles.admin]);
 
-      // Add rejected permission
+      // Assign the 'rejected' marker role
       const { error } = await supabase
-        .from('user_permissions')
-        .insert({
-          user_id: userId,
-          permission: 'rejected',
-          granted_by: user?.id,
-        });
+        .from('user_app_roles')
+        .insert({ user_id: userId, app_role_id: iplRoles.rejected, granted_by: user?.id });
 
       if (error) throw error;
 
@@ -273,12 +328,7 @@ export default function Admin() {
       setUsers(prev =>
         prev.map(u => {
           if (u.id === userId) {
-            return {
-              ...u,
-              isRejected: true,
-              canReadFiles: false,
-              canUploadFiles: false,
-            };
+            return { ...u, isRejected: true, canReadFiles: false, canUploadFiles: false };
           }
           return u;
         })
@@ -301,15 +351,16 @@ export default function Admin() {
   };
 
   const unrejectUser = async (userId: string) => {
+    if (!iplRoles) return;
     setUpdating(`${userId}-unreject`);
 
     try {
-      // Remove rejected permission
+      // Remove the 'rejected' marker role — user returns to pending (no active roles)
       const { error } = await supabase
-        .from('user_permissions')
+        .from('user_app_roles')
         .delete()
         .eq('user_id', userId)
-        .eq('permission', 'rejected');
+        .eq('app_role_id', iplRoles.rejected);
 
       if (error) throw error;
 
@@ -317,10 +368,7 @@ export default function Admin() {
       setUsers(prev =>
         prev.map(u => {
           if (u.id === userId) {
-            return {
-              ...u,
-              isRejected: false,
-            };
+            return { ...u, isRejected: false };
           }
           return u;
         })

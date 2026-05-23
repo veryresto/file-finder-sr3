@@ -11,6 +11,17 @@
 
 
 -- -----------------------------------------------------------------------------
+-- Step 0: Drop the legacy sync trigger FIRST
+-- The sync_legacy_permissions() trigger fires on every INSERT into user_app_roles.
+-- Its body contains a broken comparison (user_permissions.user_id text vs uuid)
+-- which would cause the Step 2 data migration INSERTs to fail.
+-- Drop it before any data migration runs.
+-- -----------------------------------------------------------------------------
+DROP TRIGGER IF EXISTS sync_legacy_permissions_trg ON public.user_app_roles;
+DROP FUNCTION IF EXISTS public.sync_legacy_permissions();
+
+
+-- -----------------------------------------------------------------------------
 -- Step 1: Add 'rejected' marker app role for ipl_finder
 -- This role carries NO app_role_permissions rows — it has no capabilities.
 -- It is assigned to users explicitly blocked by an admin, and is used only by
@@ -38,7 +49,7 @@ ON CONFLICT (app_id, name) DO NOTHING;
 -- 2a. Users with upload_files → ipl_finder.admin (covers read + upload)
 INSERT INTO public.user_app_roles (user_id, app_role_id)
 SELECT
-  up.user_id,
+  up.user_id::uuid,
   ar.id
 FROM public.user_permissions up
 JOIN public.app_roles ar ON ar.name = 'admin'
@@ -49,7 +60,7 @@ ON CONFLICT (user_id, app_role_id) DO NOTHING;
 -- 2b. Users with read_files ONLY (no upload_files) → ipl_finder.resident
 INSERT INTO public.user_app_roles (user_id, app_role_id)
 SELECT
-  up.user_id,
+  up.user_id::uuid,
   ar.id
 FROM public.user_permissions up
 JOIN public.app_roles ar ON ar.name = 'resident'
@@ -65,7 +76,7 @@ ON CONFLICT (user_id, app_role_id) DO NOTHING;
 -- 2c. Users with rejected permission → ipl_finder.rejected marker role
 INSERT INTO public.user_app_roles (user_id, app_role_id)
 SELECT
-  up.user_id,
+  up.user_id::uuid,
   ar.id
 FROM public.user_permissions up
 JOIN public.app_roles ar ON ar.name = 'rejected'
@@ -83,7 +94,7 @@ DROP POLICY IF EXISTS "Approved users can view files" ON public.files;
 CREATE POLICY "Approved users can view files"
 ON public.files FOR SELECT
 USING (
-  has_role(auth.uid(), 'admin') OR
+  EXISTS (SELECT 1 FROM public.user_roles WHERE user_id::text = auth.uid()::text AND role::text = 'admin') OR
   has_namespaced_permission(auth.uid(), 'ipl_finder.read_files')
 );
 
@@ -91,8 +102,8 @@ DROP POLICY IF EXISTS "Users with upload permission can upload files" ON public.
 CREATE POLICY "Users with upload permission can upload files"
 ON public.files FOR INSERT
 WITH CHECK (
-  auth.uid() = uploader_id AND (
-    has_role(auth.uid(), 'admin') OR
+  auth.uid()::text = uploader_id AND (
+    EXISTS (SELECT 1 FROM public.user_roles WHERE user_id::text = auth.uid()::text AND role::text = 'admin') OR
     has_namespaced_permission(auth.uid(), 'ipl_finder.upload_files')
   )
 );
@@ -101,8 +112,8 @@ DROP POLICY IF EXISTS "Users can delete files" ON public.files;
 CREATE POLICY "Users can delete files"
 ON public.files FOR DELETE
 USING (
-  has_role(auth.uid(), 'admin') OR
-  (auth.uid() = uploader_id AND has_namespaced_permission(auth.uid(), 'ipl_finder.upload_files'))
+  EXISTS (SELECT 1 FROM public.user_roles WHERE user_id::text = auth.uid()::text AND role::text = 'admin') OR
+  (auth.uid()::text = uploader_id AND has_namespaced_permission(auth.uid(), 'ipl_finder.upload_files'))
 );
 
 
@@ -118,7 +129,7 @@ CREATE POLICY "Approved users can read files"
 ON storage.objects FOR SELECT
 USING (
   bucket_id = 'text-files' AND (
-    has_role(auth.uid(), 'admin') OR
+    EXISTS (SELECT 1 FROM public.user_roles WHERE user_id::text = auth.uid()::text AND role::text = 'admin') OR
     has_namespaced_permission(auth.uid(), 'ipl_finder.read_files')
   )
 );
@@ -128,36 +139,25 @@ CREATE POLICY "Users with upload permission can upload files"
 ON storage.objects FOR INSERT
 WITH CHECK (
   bucket_id = 'text-files' AND (
-    has_role(auth.uid(), 'admin') OR
+    EXISTS (SELECT 1 FROM public.user_roles WHERE user_id::text = auth.uid()::text AND role::text = 'admin') OR
     has_namespaced_permission(auth.uid(), 'ipl_finder.upload_files')
   )
 );
 
 
 -- -----------------------------------------------------------------------------
--- Step 5: Drop legacy infrastructure
---
--- Order matters:
---   a. Drop trigger first (references the function)
---   b. Drop the function
---   c. Drop the table (now safe — nothing references it in RLS)
---   d. Drop orphaned helper functions (only used by old RLS policies)
---   e. Drop the enum type
+-- Step 5: Drop remaining legacy infrastructure
+-- (Trigger + sync function already dropped in Step 0)
 -- -----------------------------------------------------------------------------
 
--- 5a. Drop the sync trigger (it was syncing FROM user_app_roles TO user_permissions;
---     no longer needed and was referencing wrong column structure anyway)
-DROP TRIGGER IF EXISTS sync_legacy_permissions_trg ON public.user_app_roles;
-DROP FUNCTION IF EXISTS public.sync_legacy_permissions();
-
--- 5b. Drop the legacy user_permissions table
+-- 5a. Drop the legacy user_permissions table
 DROP TABLE IF EXISTS public.user_permissions;
 
--- 5c. Drop helper functions that were only used by the legacy RLS policies
+-- 5b. Drop helper functions that were only used by the legacy RLS policies.
 --     has_role() is deliberately kept — still used by activity_logs RLS,
 --     get-users-auth-info edge function, and delete-users edge function.
 DROP FUNCTION IF EXISTS public.has_permission(uuid, user_permission);
 DROP FUNCTION IF EXISTS public.is_approved(uuid);
 
--- 5d. Drop the legacy enum type (no longer referenced anywhere)
+-- 5c. Drop the legacy enum type (no longer referenced anywhere)
 DROP TYPE IF EXISTS public.user_permission;

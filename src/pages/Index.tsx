@@ -47,17 +47,19 @@ const Index = () => {
     : (import.meta.env.VITE_COMMUNITY_PLATFORM_URL || 'https://community.veryresto.com');
 
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      window.location.replace(`${portalUrl}/?redirect_to=${encodeURIComponent(window.location.origin)}`);
-    }
-  }, [user, authLoading, portalUrl]);
+  const userId = user?.id;
 
   useEffect(() => {
-    if (user && !permLoading && resolvedUserId === user.id && !isPlatformApproved) {
+    if (!authLoading && !userId) {
+      window.location.replace(`${portalUrl}/?redirect_to=${encodeURIComponent(window.location.origin)}`);
+    }
+  }, [userId, authLoading, portalUrl]);
+
+  useEffect(() => {
+    if (userId && !permLoading && resolvedUserId === userId && !isPlatformApproved) {
       window.location.replace(`${portalUrl}/`);
     }
-  }, [user, isPlatformApproved, permLoading, portalUrl, resolvedUserId]);
+  }, [userId, isPlatformApproved, permLoading, portalUrl, resolvedUserId]);
 
   const [files, setFiles] = useState<FileWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,12 +138,12 @@ const Index = () => {
   };
 
   useEffect(() => {
-    if (user && isApproved) {
+    if (userId && isApproved) {
       fetchFiles();
-    } else if (user && !permLoading && !isApproved) {
+    } else if (userId && !permLoading && !isApproved) {
       setLoading(false);
     }
-  }, [user, isApproved, permLoading]);
+  }, [userId, isApproved, permLoading]);
 
   useEffect(() => {
     if (isAdmin) {

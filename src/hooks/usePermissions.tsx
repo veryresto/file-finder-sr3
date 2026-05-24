@@ -23,8 +23,10 @@ export function usePermissions(): Permissions {
   const [loading, setLoading] = useState(true);
   const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
 
+  const userId = user?.id;
+
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       setIsAdmin(false);
       setIsPlatformApproved(false);
       setIsRejected(false);
@@ -43,7 +45,7 @@ export function usePermissions(): Permissions {
           supabase
             .from('user_roles')
             .select('role')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .eq('role', 'admin')
             .maybeSingle(),
           (supabase as any)
@@ -56,7 +58,7 @@ export function usePermissions(): Permissions {
                 )
               )
             `)
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .eq('app_roles.name', 'admin')
             .eq('app_roles.applications.slug', 'ipl_finder')
             .maybeSingle()
@@ -71,7 +73,7 @@ export function usePermissions(): Permissions {
         const { data: profile } = await supabase
           .from('profiles')
           .select('approval_status')
-          .eq('id', user.id)
+          .eq('id', userId)
           .maybeSingle();
 
         const status = profile?.approval_status || 'pending';
@@ -85,16 +87,16 @@ export function usePermissions(): Permissions {
         } else {
           // Resolve namespaced permissions from central App-RBAC
           const [readRes, uploadRes] = await Promise.all([
-            supabase.rpc('has_namespaced_permission', { user_id: user.id, namespaced_perm: 'ipl_finder.read_files' }),
-            supabase.rpc('has_namespaced_permission', { user_id: user.id, namespaced_perm: 'ipl_finder.upload_files' })
+            supabase.rpc('has_namespaced_permission', { user_id: userId, namespaced_perm: 'ipl_finder.read_files' }),
+            supabase.rpc('has_namespaced_permission', { user_id: userId, namespaced_perm: 'ipl_finder.upload_files' })
           ]);
           setCanReadFiles(!!readRes.data);
           setCanUploadFiles(!!uploadRes.data);
         }
-        setResolvedUserId(user.id);
+        setResolvedUserId(userId);
 
         console.log('[AUTH]', {
-          userId: user.id,
+          userId,
           authResult: 'success',
           approvalStatus: status,
           route: window.location.pathname
@@ -107,7 +109,7 @@ export function usePermissions(): Permissions {
     };
 
     fetchPermissions();
-  }, [user]);
+  }, [userId]);
 
   const isApproved = isAdmin || canReadFiles || canUploadFiles;
 

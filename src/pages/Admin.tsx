@@ -44,6 +44,9 @@ interface UserWithPermissions {
   isRejected: boolean;
   canReadFiles: boolean;
   canUploadFiles: boolean;
+  participant_type: string | null;
+  resident_subtype: string | null;
+  requested_affiliation: string | null;
 }
 
 export default function Admin() {
@@ -151,6 +154,9 @@ export default function Admin() {
           // 'admin' app role implies read_files + upload_files
           canReadFiles: assignedRoleNames.includes('resident') || assignedRoleNames.includes('admin'),
           canUploadFiles: assignedRoleNames.includes('admin'),
+          participant_type: (profile as any).participant_type || null,
+          resident_subtype: (profile as any).resident_subtype || null,
+          requested_affiliation: (profile as any).requested_affiliation || null,
         };
       });
 
@@ -489,6 +495,36 @@ export default function Admin() {
     return <Badge variant="outline" className="text-muted-foreground">Pending</Badge>;
   };
 
+  const getClassificationBadge = (userItem: UserWithPermissions) => {
+    const { participant_type, resident_subtype, requested_affiliation } = userItem;
+    if (!participant_type) return null;
+
+    if (participant_type === 'resident') {
+      const isOwner = resident_subtype === 'owner';
+      const label = isOwner ? 'Resident (Owner)' : 'Resident (Renter)';
+      const colorClass = isOwner
+        ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+        : 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20';
+      return (
+        <Badge variant="outline" className={`text-[10px] font-normal px-2 py-0 h-5 mt-1 ${colorClass}`}>
+          {label}
+        </Badge>
+      );
+    }
+
+    if (participant_type === 'non_resident') {
+      const affiliation = requested_affiliation || 'Staff';
+      const formattedAffiliation = affiliation.charAt(0).toUpperCase() + affiliation.slice(1);
+      return (
+        <Badge variant="outline" className="text-[10px] font-normal px-2 py-0 h-5 mt-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
+          Non-Resident ({formattedAffiliation})
+        </Badge>
+      );
+    }
+
+    return null;
+  };
+
   // Split users into active and rejected
   const activeUsers = users.filter(u => !u.isRejected);
   const rejectedUsers = users.filter(u => u.isRejected);
@@ -601,7 +637,10 @@ export default function Admin() {
                           </Avatar>
                           <div>
                             <div className="font-medium">{userItem.full_name || 'No name'}</div>
-                            <div className="text-sm text-muted-foreground">{userItem.email}</div>
+                            <div className="text-sm text-muted-foreground flex flex-col items-start">
+                              <span>{userItem.email}</span>
+                              {getClassificationBadge(userItem)}
+                            </div>
                           </div>
                         </div>
                       </TableCell>
@@ -709,7 +748,10 @@ export default function Admin() {
                           </Avatar>
                           <div>
                             <div className="font-medium">{userItem.full_name || 'No name'}</div>
-                            <div className="text-sm text-muted-foreground">{userItem.email}</div>
+                            <div className="text-sm text-muted-foreground flex flex-col items-start">
+                              <span>{userItem.email}</span>
+                              {getClassificationBadge(userItem)}
+                            </div>
                           </div>
                         </div>
                       </TableCell>

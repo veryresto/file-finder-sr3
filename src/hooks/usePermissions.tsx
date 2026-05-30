@@ -11,6 +11,10 @@ interface Permissions {
   canUploadFiles: boolean;
   loading: boolean;
   resolvedUserId: string | null;
+  participantType: string | null;
+  residentSubtype: string | null;
+  requestedAffiliation: string | null;
+  roles: string[];
 }
 
 export function usePermissions(): Permissions {
@@ -22,6 +26,10 @@ export function usePermissions(): Permissions {
   const [canUploadFiles, setCanUploadFiles] = useState(false);
   const [loading, setLoading] = useState(true);
   const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
+  const [participantType, setParticipantType] = useState<string | null>(null);
+  const [residentSubtype, setResidentSubtype] = useState<string | null>(null);
+  const [requestedAffiliation, setRequestedAffiliation] = useState<string | null>(null);
+  const [roles, setRoles] = useState<string[]>([]);
 
   const userId = user?.id;
 
@@ -33,6 +41,10 @@ export function usePermissions(): Permissions {
       setCanReadFiles(false);
       setCanUploadFiles(false);
       setResolvedUserId(null);
+      setParticipantType(null);
+      setResidentSubtype(null);
+      setRequestedAffiliation(null);
+      setRoles([]);
       setLoading(false);
       return;
     }
@@ -40,14 +52,12 @@ export function usePermissions(): Permissions {
     const fetchPermissions = async () => {
       setLoading(true);
       try {
-        // Check if user is global admin or has ipl_finder local admin role
-        const [globalAdminRes, localAdminRes] = await Promise.all([
+        // Fetch all roles, local admin role, and profile classification info in parallel
+        const [globalRolesRes, localAdminRes, profileRes] = await Promise.all([
           supabase
             .from('user_roles')
             .select('role')
-            .eq('user_id', userId)
-            .eq('role', 'admin')
-            .maybeSingle(),
+            .eq('user_id', userId),
           (supabase as any)
             .from('user_app_roles')
             .select(`
@@ -61,24 +71,29 @@ export function usePermissions(): Permissions {
             .eq('user_id', userId)
             .eq('app_roles.name', 'admin')
             .eq('app_roles.applications.slug', 'ipl_finder')
+            .maybeSingle(),
+          supabase
+            .from('profiles')
+            .select('approval_status, participant_type, resident_subtype, requested_affiliation')
+            .eq('id', userId)
             .maybeSingle()
         ]);
 
-        const isGlobalAdmin = !!globalAdminRes.data;
+        const fetchedRoles = globalRolesRes.data?.map(r => r.role) || [];
+        setRoles(fetchedRoles);
+
+        const isGlobalAdmin = fetchedRoles.includes('admin');
         const isLocalAdmin = !!localAdminRes.data;
         const adminStatus = isGlobalAdmin || isLocalAdmin;
         setIsAdmin(adminStatus);
 
-        // Fetch central profiles approval_status
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('approval_status')
-          .eq('id', userId)
-          .maybeSingle();
-
+        const profile = profileRes.data;
         const status = profile?.approval_status || 'pending';
         setIsPlatformApproved(status === 'approved');
         setIsRejected(status === 'rejected');
+        setParticipantType(profile?.participant_type || null);
+        setResidentSubtype(profile?.resident_subtype || null);
+        setRequestedAffiliation(profile?.requested_affiliation || null);
 
         if (adminStatus) {
           // Admins have all permissions
@@ -113,5 +128,18 @@ export function usePermissions(): Permissions {
 
   const isApproved = isAdmin || canReadFiles || canUploadFiles;
 
-  return { isAdmin, isPlatformApproved, isApproved, isRejected, canReadFiles, canUploadFiles, loading, resolvedUserId };
+  return {
+    isAdmin,
+    isPlatformApproved,
+    isApproved,
+    isRejected,
+    canReadFiles,
+    canUploadFiles,
+    loading,
+    resolvedUserId,
+    participantType,
+    residentSubtype,
+    requestedAffiliation,
+    roles
+  };
 }

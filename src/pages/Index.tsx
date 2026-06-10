@@ -218,6 +218,11 @@ const Index = () => {
 
       if (dbError) throw dbError;
 
+      analytics.track('file_deleted', {
+        file_type: (fileToDelete.name.split('.').pop() || '').toLowerCase(),
+        is_bulk: false
+      });
+
       toast({
         title: 'File deleted',
         description: `"${fileToDelete.name}" has been deleted`,
@@ -256,6 +261,12 @@ const Index = () => {
         .in('id', Array.from(selectedFiles));
 
       if (dbError) throw dbError;
+
+      analytics.track('file_deleted', {
+        file_type: 'multiple',
+        is_bulk: true,
+        count: selectedFiles.size
+      });
 
       toast({
         title: 'Files deleted',

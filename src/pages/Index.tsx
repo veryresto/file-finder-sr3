@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import * as analytics from '@/lib/analytics';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -150,6 +151,43 @@ const Index = () => {
       fetchPendingUsers();
     }
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (userId && isApproved) {
+      analytics.track('page_viewed', { page: 'ipl_finder' });
+    }
+  }, [userId, isApproved]);
+
+  useEffect(() => {
+    if (!searchQuery) return;
+    const trimmed = searchQuery.trim();
+    if (trimmed.length < 2) return;
+
+    const timer = setTimeout(() => {
+      const query = trimmed.toLowerCase();
+      const count = files.filter(file =>
+        file.name.toLowerCase().includes(query) ||
+        file.content?.toLowerCase().includes(query)
+      ).length;
+
+      analytics.track('search_performed', {
+        query_length: trimmed.length,
+        result_count: count
+      });
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, files]);
+
+  useEffect(() => {
+    if (selectedFile) {
+      const ext = (selectedFile.name.split('.').pop() || '').toLowerCase();
+      analytics.track('file_viewed', {
+        file_id: selectedFile.id,
+        file_type: ext
+      });
+    }
+  }, [selectedFile]);
 
   const filteredFiles = useMemo(() => {
     if (!searchQuery.trim()) return files;

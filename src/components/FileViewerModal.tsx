@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import * as analytics from '@/lib/analytics';
 
 interface FileWithProfile {
   id: string;
@@ -81,6 +82,11 @@ export function FileViewerModal({ file, searchQuery, open, onOpenChange }: FileV
           resource_name: file.name,
         });
       }
+
+      analytics.track('file_downloaded', {
+        file_id: file.id,
+        file_type: (file.name.split('.').pop() || '').toLowerCase(),
+      });
 
       const url = URL.createObjectURL(data);
       const a = document.createElement('a');

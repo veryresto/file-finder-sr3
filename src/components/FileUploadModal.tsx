@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import * as analytics from '@/lib/analytics';
 
 interface FileUploadModalProps {
   open: boolean;
@@ -113,6 +114,11 @@ export function FileUploadModal({ open, onOpenChange, onUploadComplete }: FileUp
         });
 
         if (dbError) throw dbError;
+
+        analytics.track('file_uploaded', {
+          file_type: (file.name.split('.').pop() || '').toLowerCase(),
+          file_size: file.size
+        });
       }
 
       toast({

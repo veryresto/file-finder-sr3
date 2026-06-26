@@ -11,6 +11,8 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import * as analytics from '@/lib/analytics';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,9 +41,27 @@ interface FileWithProfile {
 
 const Index = () => {
   const { user, loading: authLoading } = useAuth();
-  const { isAdmin, isApproved, isRejected, canReadFiles, canUploadFiles, loading: permLoading } = usePermissions();
+  const { isAdmin, isPlatformApproved, isApproved, isRejected, canReadFiles, canUploadFiles, loading: permLoading, resolvedUserId } = usePermissions();
   const { toast } = useToast();
-  
+  const portalUrl = (window.location.hostname === 'ipl-finder.localtest.me' || window.location.hostname === 'ipl-finder.lvh.me')
+    ? 'http://community.localtest.me:5173'
+    : (import.meta.env.VITE_COMMUNITY_PLATFORM_URL || 'https://community.veryresto.com');
+
+
+  const userId = user?.id;
+
+  useEffect(() => {
+    if (!authLoading && !userId) {
+      window.location.replace(`${portalUrl}/?redirect_to=${encodeURIComponent(window.location.origin)}`);
+    }
+  }, [userId, authLoading, portalUrl]);
+
+  useEffect(() => {
+    if (userId && !permLoading && resolvedUserId === userId && !isPlatformApproved) {
+      window.location.replace(`${portalUrl}/`);
+    }
+  }, [userId, isPlatformApproved, permLoading, portalUrl, resolvedUserId]);
+
   const [files, setFiles] = useState<FileWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,7 +90,7 @@ const Index = () => {
             avatar_url
           )
         `)
-        .order('created_at', { ascending: false });
+        .order('name', { ascending: false });
 
       if (error) throw error;
       setFiles(data || []);
@@ -87,29 +107,29 @@ const Index = () => {
 
   const fetchPendingUsers = async () => {
     if (!isAdmin) return;
-    
+
     try {
       // Get all profiles
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id');
-      
+
       if (!profiles) return;
-      
+
       // Get all user IDs that have permissions or are admin
       const { data: permissions } = await supabase
         .from('user_permissions')
         .select('user_id');
-      
+
       const { data: roles } = await supabase
         .from('user_roles')
         .select('user_id');
-      
+
       const approvedUserIds = new Set([
         ...(permissions?.map(p => p.user_id) || []),
         ...(roles?.map(r => r.user_id) || [])
       ]);
-      
+
       // Count pending users (users without permissions and not admin)
       const pendingCount = profiles.filter(p => !approvedUserIds.has(p.id)).length;
       setHasPendingUsers(pendingCount > 0);
@@ -119,12 +139,12 @@ const Index = () => {
   };
 
   useEffect(() => {
-    if (user && isApproved) {
+    if (userId && isApproved) {
       fetchFiles();
-    } else if (user && !permLoading && !isApproved) {
+    } else if (userId && !permLoading && !isApproved) {
       setLoading(false);
     }
-  }, [user, isApproved, permLoading]);
+  }, [userId, isApproved, permLoading]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -132,11 +152,48 @@ const Index = () => {
     }
   }, [isAdmin]);
 
+  useEffect(() => {
+    if (userId && isApproved) {
+      analytics.track('page_viewed', { page: 'ipl_finder' });
+    }
+  }, [userId, isApproved]);
+
+  useEffect(() => {
+    if (!searchQuery) return;
+    const trimmed = searchQuery.trim();
+    if (trimmed.length < 2) return;
+
+    const timer = setTimeout(() => {
+      const query = trimmed.toLowerCase();
+      const count = files.filter(file =>
+        file.name.toLowerCase().includes(query) ||
+        file.content?.toLowerCase().includes(query)
+      ).length;
+
+      analytics.track('search_performed', {
+        query_length: trimmed.length,
+        result_count: count
+      });
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, files]);
+
+  useEffect(() => {
+    if (selectedFile) {
+      const ext = (selectedFile.name.split('.').pop() || '').toLowerCase();
+      analytics.track('file_viewed', {
+        file_id: selectedFile.id,
+        file_type: ext
+      });
+    }
+  }, [selectedFile]);
+
   const filteredFiles = useMemo(() => {
     if (!searchQuery.trim()) return files;
-    
+
     const query = searchQuery.toLowerCase();
-    return files.filter(file => 
+    return files.filter(file =>
       file.name.toLowerCase().includes(query) ||
       file.content?.toLowerCase().includes(query)
     );
@@ -160,6 +217,11 @@ const Index = () => {
         .eq('id', fileToDelete.id);
 
       if (dbError) throw dbError;
+
+      analytics.track('file_deleted', {
+        file_type: (fileToDelete.name.split('.').pop() || '').toLowerCase(),
+        is_bulk: false
+      });
 
       toast({
         title: 'File deleted',
@@ -199,6 +261,12 @@ const Index = () => {
         .in('id', Array.from(selectedFiles));
 
       if (dbError) throw dbError;
+
+      analytics.track('file_deleted', {
+        file_type: 'multiple',
+        is_bulk: true,
+        count: selectedFiles.size
+      });
 
       toast({
         title: 'Files deleted',
@@ -247,15 +315,35 @@ const Index = () => {
   }
 
   if (!user) {
-    return <LoginScreen />;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
-  if (isRejected) {
-    return <RejectedScreen />;
+  if (!isPlatformApproved) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   if (!isApproved) {
-    return <PendingApprovalScreen />;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md w-full border border-border bg-card p-6 rounded-lg text-center shadow-lg">
+          <h2 className="text-xl font-bold mb-2 text-destructive">Access Denied</h2>
+          <p className="text-muted-foreground mb-6">
+            Your account is approved on the platform, but you do not have permission to access IPL Finder. Please contact your administrator to request access.
+          </p>
+          <Button asChild variant="outline" className="w-full">
+            <a href={`${portalUrl}/`}>Back to Hub</a>
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (

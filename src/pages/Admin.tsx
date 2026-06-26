@@ -44,6 +44,9 @@ interface UserWithPermissions {
   isRejected: boolean;
   canReadFiles: boolean;
   canUploadFiles: boolean;
+  participant_type: string | null;
+  resident_subtype: string | null;
+  requested_affiliation: string | null;
 }
 
 export default function Admin() {
@@ -57,6 +60,12 @@ export default function Admin() {
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Cached app_role IDs for ipl_finder — populated on first fetchUsers
+  const [iplRoles, setIplRoles] = useState<{
+    resident: string;
+    admin: string;
+    rejected: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!permLoading && !isAdmin) {
@@ -73,34 +82,59 @@ export default function Admin() {
   const fetchUsers = async () => {
     try {
       // Fetch all data in parallel
-      const [profilesResult, rolesResult, permissionsResult, authInfoResult] = await Promise.all([
-        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-        supabase.from('user_roles').select('user_id, role'),
-        supabase.from('user_permissions').select('user_id, permission'),
-        supabase.functions.invoke('get-users-auth-info'),
-      ]);
+      const [profilesResult, rolesResult, appRolesResult, appRoleAssignmentsResult, authInfoResult] =
+        await Promise.all([
+          supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+          supabase.from('user_roles').select('user_id, role'),
+          // Fetch ipl_finder role template IDs — needed for toggle operations
+          supabase
+            .from('app_roles')
+            .select('id, name, applications!inner(slug)')
+            .eq('applications.slug', 'ipl_finder'),
+          // Fetch current user → ipl_finder app role assignments
+          supabase
+            .from('user_app_roles')
+            .select('user_id, app_role_id, app_roles!inner(name, applications!inner(slug))')
+            .eq('app_roles.applications.slug', 'ipl_finder'),
+          supabase.functions.invoke('get-users-auth-info'),
+        ]);
 
       if (profilesResult.error) throw profilesResult.error;
       if (rolesResult.error) throw rolesResult.error;
-      if (permissionsResult.error) throw permissionsResult.error;
+      if (appRolesResult.error) throw appRolesResult.error;
+      if (appRoleAssignmentsResult.error) throw appRoleAssignmentsResult.error;
 
       const profiles = profilesResult.data;
       const roles = rolesResult.data;
-      const permissions = permissionsResult.data;
+      const appRoles = appRolesResult.data || [];
+      const assignments = appRoleAssignmentsResult.data || [];
       const authUsers = authInfoResult.data?.users || [];
+
+      // Cache role template IDs for use in toggle/reject operations
+      const roleMap = Object.fromEntries(
+        appRoles.map((r: any) => [r.name, r.id])
+      ) as { resident?: string; admin?: string; rejected?: string };
+      if (roleMap.resident && roleMap.admin && roleMap.rejected) {
+        setIplRoles({
+          resident: roleMap.resident,
+          admin: roleMap.admin,
+          rejected: roleMap.rejected,
+        });
+      }
 
       // Create a map for quick auth info lookup
       const authInfoMap = new Map<string, { first_login: string | null; last_sign_in: string | null }>(
         authUsers.map((u: { id: string; created_at: string | null; last_sign_in_at: string | null }) => [
           u.id,
-          { first_login: u.created_at, last_sign_in: u.last_sign_in_at }
+          { first_login: u.created_at, last_sign_in: u.last_sign_in_at },
         ])
       );
 
-      // Combine data
+      // Combine data — derive permissions from app role assignments
       const usersWithPermissions: UserWithPermissions[] = (profiles || []).map(profile => {
         const userRoles = roles?.filter(r => r.user_id === profile.id) || [];
-        const userPerms = permissions?.filter(p => p.user_id === profile.id) || [];
+        const userAssignments = assignments.filter((a: any) => a.user_id === profile.id);
+        const assignedRoleNames = userAssignments.map((a: any) => a.app_roles?.name as string);
         const authInfo = authInfoMap.get(profile.id) || { first_login: null, last_sign_in: null };
 
         return {
@@ -115,9 +149,14 @@ export default function Admin() {
           last_sign_in: authInfo.last_sign_in,
           last_active_at: (profile as any).last_active_at || null,
           isAdmin: userRoles.some(r => r.role === 'admin'),
-          isRejected: userPerms.some(p => p.permission === 'rejected'),
-          canReadFiles: userPerms.some(p => p.permission === 'read_files'),
-          canUploadFiles: userPerms.some(p => p.permission === 'upload_files'),
+          // 'rejected' is a marker role with no permissions
+          isRejected: assignedRoleNames.includes('rejected'),
+          // 'admin' app role implies read_files + upload_files
+          canReadFiles: assignedRoleNames.includes('resident') || assignedRoleNames.includes('admin'),
+          canUploadFiles: assignedRoleNames.includes('admin'),
+          participant_type: (profile as any).participant_type || null,
+          resident_subtype: (profile as any).resident_subtype || null,
+          requested_affiliation: (profile as any).requested_affiliation || null,
         };
       });
 
@@ -146,7 +185,7 @@ export default function Admin() {
 
       // Only send notification if this is their first approval (going from 0 to 1+ permissions)
       const hadNoPermissions = !userItem.canReadFiles && !userItem.canUploadFiles;
-      
+
       if (hadNoPermissions && userItem.email) {
         console.log('Sending approval notification to:', userItem.email);
         await supabase.functions.invoke('send-notification-email', {
@@ -169,34 +208,60 @@ export default function Admin() {
     permission: 'read_files' | 'upload_files',
     currentValue: boolean
   ) => {
+    if (!iplRoles) return;
     setUpdating(`${userId}-${permission}`);
     const userItem = users.find(u => u.id === userId);
-    
+
     try {
-      if (currentValue) {
-        // Remove permission
-        const { error } = await supabase
-          .from('user_permissions')
-          .delete()
-          .eq('user_id', userId)
-          .eq('permission', permission);
-
-        if (error) throw error;
+      if (permission === 'read_files') {
+        if (currentValue) {
+          // Turning read OFF → remove all active ipl_finder roles
+          const { error } = await supabase
+            .from('user_app_roles')
+            .delete()
+            .eq('user_id', userId)
+            .in('app_role_id', [iplRoles.resident, iplRoles.admin]);
+          if (error) throw error;
+        } else {
+          // Turning read ON → assign 'resident' only if user doesn't already have 'admin'
+          if (!userItem?.canUploadFiles) {
+            const { error } = await supabase
+              .from('user_app_roles')
+              .insert({ user_id: userId, app_role_id: iplRoles.resident, granted_by: user?.id });
+            if (error) throw error;
+            if (userItem) await sendApprovalNotification(userItem, permission);
+          }
+          // If user already has 'admin' role, they already have read — no-op
+        }
       } else {
-        // Add permission
-        const { error } = await supabase
-          .from('user_permissions')
-          .insert({
-            user_id: userId,
-            permission: permission,
-            granted_by: user?.id,
-          });
+        // upload_files
+        if (currentValue) {
+          // Turning upload OFF → remove 'admin', assign 'resident' (keep read access)
+          const { error: delError } = await supabase
+            .from('user_app_roles')
+            .delete()
+            .eq('user_id', userId)
+            .eq('app_role_id', iplRoles.admin);
+          if (delError) throw delError;
 
-        if (error) throw error;
+          const { error: insError } = await supabase
+            .from('user_app_roles')
+            .insert({ user_id: userId, app_role_id: iplRoles.resident, granted_by: user?.id });
+          if (insError) throw insError;
+        } else {
+          // Turning upload ON → remove 'resident' if present, assign 'admin'
+          await supabase
+            .from('user_app_roles')
+            .delete()
+            .eq('user_id', userId)
+            .eq('app_role_id', iplRoles.resident);
 
-        // Send approval notification if this is the user's first permission
-        if (userItem) {
-          await sendApprovalNotification(userItem, permission);
+          const { error } = await supabase
+            .from('user_app_roles')
+            .insert({ user_id: userId, app_role_id: iplRoles.admin, granted_by: user?.id });
+          if (error) throw error;
+
+          if (userItem) await sendApprovalNotification(userItem, permission);
         }
       }
 
@@ -204,11 +269,9 @@ export default function Admin() {
       setUsers(prev =>
         prev.map(u => {
           if (u.id === userId) {
-            return {
-              ...u,
-              canReadFiles: permission === 'read_files' ? !currentValue : u.canReadFiles,
-              canUploadFiles: permission === 'upload_files' ? !currentValue : u.canUploadFiles,
-            };
+            const newCanRead = permission === 'read_files' ? !currentValue : u.canReadFiles;
+            const newCanUpload = permission === 'upload_files' ? !currentValue : u.canUploadFiles;
+            return { ...u, canReadFiles: newCanRead, canUploadFiles: newCanUpload };
           }
           return u;
         })
@@ -231,36 +294,47 @@ export default function Admin() {
   };
 
   const rejectUser = async (userId: string) => {
+    if (!iplRoles) return;
     setUpdating(`${userId}-reject`);
-    
-    try {
-      // Remove all existing permissions first
-      await supabase
-        .from('user_permissions')
-        .delete()
-        .eq('user_id', userId);
 
-      // Add rejected permission
+    try {
+      // Remove any active access roles (resident + admin)
+      await supabase
+        .from('user_app_roles')
+        .delete()
+        .eq('user_id', userId)
+        .in('app_role_id', [iplRoles.resident, iplRoles.admin]);
+
+      // Assign the 'rejected' marker role
       const { error } = await supabase
-        .from('user_permissions')
-        .insert({
-          user_id: userId,
-          permission: 'rejected',
-          granted_by: user?.id,
-        });
+        .from('user_app_roles')
+        .insert({ user_id: userId, app_role_id: iplRoles.rejected, granted_by: user?.id });
 
       if (error) throw error;
+
+      // Send rejection notification
+      const userItem = users.find(u => u.id === userId);
+      if (userItem && userItem.email) {
+        console.log('Sending rejection notification to:', userItem.email);
+        try {
+          await supabase.functions.invoke('send-notification-email', {
+            body: {
+              type: 'user_rejected',
+              userEmail: userItem.email,
+              userName: userItem.full_name,
+            },
+          });
+        } catch (notifError) {
+          console.error('Failed to send rejection notification:', notifError);
+          // Don't throw - notification failure shouldn't block the rejection
+        }
+      }
 
       // Update local state
       setUsers(prev =>
         prev.map(u => {
           if (u.id === userId) {
-            return {
-              ...u,
-              isRejected: true,
-              canReadFiles: false,
-              canUploadFiles: false,
-            };
+            return { ...u, isRejected: true, canReadFiles: false, canUploadFiles: false };
           }
           return u;
         })
@@ -283,15 +357,16 @@ export default function Admin() {
   };
 
   const unrejectUser = async (userId: string) => {
+    if (!iplRoles) return;
     setUpdating(`${userId}-unreject`);
-    
+
     try {
-      // Remove rejected permission
+      // Remove the 'rejected' marker role — user returns to pending (no active roles)
       const { error } = await supabase
-        .from('user_permissions')
+        .from('user_app_roles')
         .delete()
         .eq('user_id', userId)
-        .eq('permission', 'rejected');
+        .eq('app_role_id', iplRoles.rejected);
 
       if (error) throw error;
 
@@ -299,10 +374,7 @@ export default function Admin() {
       setUsers(prev =>
         prev.map(u => {
           if (u.id === userId) {
-            return {
-              ...u,
-              isRejected: false,
-            };
+            return { ...u, isRejected: false };
           }
           return u;
         })
@@ -351,7 +423,7 @@ export default function Admin() {
   // Selectable users are non-admins and not the current user
   // Selectable users are non-admins, not rejected, and not the current user
   const selectableUsers = users.filter(u => !u.isAdmin && !u.isRejected && u.id !== user?.id);
-  const allSelectableSelected = selectableUsers.length > 0 && 
+  const allSelectableSelected = selectableUsers.length > 0 &&
     selectableUsers.every(u => selectedUsers.has(u.id));
 
   const toggleUserSelection = (userId: string) => {
@@ -376,7 +448,7 @@ export default function Admin() {
 
   const handleBulkDelete = async () => {
     if (selectedUsers.size === 0) return;
-    
+
     setDeleting(true);
     try {
       const { data, error } = await supabase.functions.invoke('delete-users', {
@@ -421,6 +493,36 @@ export default function Admin() {
       return <Badge variant="secondary" className="bg-green-500/20 text-green-600 border-green-500/30">Approved</Badge>;
     }
     return <Badge variant="outline" className="text-muted-foreground">Pending</Badge>;
+  };
+
+  const getClassificationBadge = (userItem: UserWithPermissions) => {
+    const { participant_type, resident_subtype, requested_affiliation } = userItem;
+    if (!participant_type) return null;
+
+    if (participant_type === 'resident') {
+      const isOwner = resident_subtype === 'owner';
+      const label = isOwner ? 'Resident (Owner)' : 'Resident (Renter)';
+      const colorClass = isOwner
+        ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+        : 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20';
+      return (
+        <Badge variant="outline" className={`text-[10px] font-normal px-2 py-0 h-5 mt-1 ${colorClass}`}>
+          {label}
+        </Badge>
+      );
+    }
+
+    if (participant_type === 'non_resident') {
+      const affiliation = requested_affiliation || 'Staff';
+      const formattedAffiliation = affiliation.charAt(0).toUpperCase() + affiliation.slice(1);
+      return (
+        <Badge variant="outline" className="text-[10px] font-normal px-2 py-0 h-5 mt-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
+          Non-Resident ({formattedAffiliation})
+        </Badge>
+      );
+    }
+
+    return null;
   };
 
   // Split users into active and rejected
@@ -535,7 +637,10 @@ export default function Admin() {
                           </Avatar>
                           <div>
                             <div className="font-medium">{userItem.full_name || 'No name'}</div>
-                            <div className="text-sm text-muted-foreground">{userItem.email}</div>
+                            <div className="text-sm text-muted-foreground flex flex-col items-start">
+                              <span>{userItem.email}</span>
+                              {getClassificationBadge(userItem)}
+                            </div>
                           </div>
                         </div>
                       </TableCell>
@@ -643,7 +748,10 @@ export default function Admin() {
                           </Avatar>
                           <div>
                             <div className="font-medium">{userItem.full_name || 'No name'}</div>
-                            <div className="text-sm text-muted-foreground">{userItem.email}</div>
+                            <div className="text-sm text-muted-foreground flex flex-col items-start">
+                              <span>{userItem.email}</span>
+                              {getClassificationBadge(userItem)}
+                            </div>
                           </div>
                         </div>
                       </TableCell>

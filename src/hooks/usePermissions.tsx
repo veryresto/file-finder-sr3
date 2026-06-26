@@ -4,61 +4,118 @@ import { useAuth } from './useAuth';
 
 interface Permissions {
   isAdmin: boolean;
+  isPlatformApproved: boolean;
   isApproved: boolean;
   isRejected: boolean;
   canReadFiles: boolean;
   canUploadFiles: boolean;
   loading: boolean;
+  resolvedUserId: string | null;
+  participantType: string | null;
+  residentSubtype: string | null;
+  requestedAffiliation: string | null;
+  roles: string[];
 }
 
 export function usePermissions(): Permissions {
   const { user } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isPlatformApproved, setIsPlatformApproved] = useState(false);
   const [isRejected, setIsRejected] = useState(false);
   const [canReadFiles, setCanReadFiles] = useState(false);
   const [canUploadFiles, setCanUploadFiles] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
+  const [participantType, setParticipantType] = useState<string | null>(null);
+  const [residentSubtype, setResidentSubtype] = useState<string | null>(null);
+  const [requestedAffiliation, setRequestedAffiliation] = useState<string | null>(null);
+  const [roles, setRoles] = useState<string[]>([]);
+
+  const userId = user?.id;
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       setIsAdmin(false);
+      setIsPlatformApproved(false);
       setIsRejected(false);
       setCanReadFiles(false);
       setCanUploadFiles(false);
+      setResolvedUserId(null);
+      setParticipantType(null);
+      setResidentSubtype(null);
+      setRequestedAffiliation(null);
+      setRoles([]);
       setLoading(false);
       return;
     }
 
     const fetchPermissions = async () => {
+      setLoading(true);
       try {
-        // Check if user is admin
-        const { data: roleData } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user.id)
-          .eq('role', 'admin')
-          .maybeSingle();
+        // Fetch all roles, local admin role, and profile classification info in parallel
+        const [globalRolesRes, localAdminRes, profileRes] = await Promise.all([
+          supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', userId),
+          (supabase as any)
+            .from('user_app_roles')
+            .select(`
+              app_roles!inner (
+                name,
+                applications!inner (
+                  slug
+                )
+              )
+            `)
+            .eq('user_id', userId)
+            .eq('app_roles.name', 'admin')
+            .eq('app_roles.applications.slug', 'ipl_finder')
+            .maybeSingle(),
+          supabase
+            .from('profiles')
+            .select('approval_status, participant_type, resident_subtype, requested_affiliation')
+            .eq('id', userId)
+            .maybeSingle()
+        ]);
 
-        const adminStatus = !!roleData;
+        const fetchedRoles = globalRolesRes.data?.map(r => r.role) || [];
+        setRoles(fetchedRoles);
+
+        const isGlobalAdmin = fetchedRoles.includes('admin');
+        const isLocalAdmin = !!localAdminRes.data;
+        const adminStatus = isGlobalAdmin || isLocalAdmin;
         setIsAdmin(adminStatus);
+
+        const profile = profileRes.data;
+        const status = profile?.approval_status || 'pending';
+        setIsPlatformApproved(status === 'approved');
+        setIsRejected(status === 'rejected');
+        setParticipantType(profile?.participant_type || null);
+        setResidentSubtype(profile?.resident_subtype || null);
+        setRequestedAffiliation(profile?.requested_affiliation || null);
 
         if (adminStatus) {
           // Admins have all permissions
           setCanReadFiles(true);
           setCanUploadFiles(true);
-          setIsRejected(false);
         } else {
-          // Check specific permissions
-          const { data: permData } = await supabase
-            .from('user_permissions')
-            .select('permission')
-            .eq('user_id', user.id);
-
-          const permissions = permData?.map(p => p.permission) || [];
-          setIsRejected(permissions.includes('rejected'));
-          setCanReadFiles(permissions.includes('read_files'));
-          setCanUploadFiles(permissions.includes('upload_files'));
+          // Resolve namespaced permissions from central App-RBAC
+          const [readRes, uploadRes] = await Promise.all([
+            supabase.rpc('has_namespaced_permission', { user_id: userId, namespaced_perm: 'ipl_finder.read_files' }),
+            supabase.rpc('has_namespaced_permission', { user_id: userId, namespaced_perm: 'ipl_finder.upload_files' })
+          ]);
+          setCanReadFiles(!!readRes.data);
+          setCanUploadFiles(!!uploadRes.data);
         }
+        setResolvedUserId(userId);
+
+        console.log('[AUTH]', {
+          userId,
+          authResult: 'success',
+          approvalStatus: status,
+          route: window.location.pathname
+        });
       } catch (error) {
         console.error('Error fetching permissions:', error);
       } finally {
@@ -67,9 +124,22 @@ export function usePermissions(): Permissions {
     };
 
     fetchPermissions();
-  }, [user]);
+  }, [userId]);
 
   const isApproved = isAdmin || canReadFiles || canUploadFiles;
 
-  return { isAdmin, isApproved, isRejected, canReadFiles, canUploadFiles, loading };
+  return {
+    isAdmin,
+    isPlatformApproved,
+    isApproved,
+    isRejected,
+    canReadFiles,
+    canUploadFiles,
+    loading,
+    resolvedUserId,
+    participantType,
+    residentSubtype,
+    requestedAffiliation,
+    roles
+  };
 }

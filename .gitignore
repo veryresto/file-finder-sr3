@@ -25,4 +25,5 @@ dist-ssr
 
 .env
 # Supabase
+.env.production
 supabase/.temp

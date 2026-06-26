@@ -1,0 +1,133 @@
+{
+  "features": [
+    {
+      "name": "Centralized Document Repository",
+      "description": "Allows authorized users to upload plain text and CSV bank e-statements, storing them in a private Supabase Storage bucket ('text-files') and saving file names, size, content, and uploader IDs to the database."
+    },
+    {
+      "name": "Postgres Full-Text Search (FTS)",
+      "description": "Provides instant search capabilities across statement names and file contents using PostgreSQL GIN indexation to handle searches across multiple months and years of statements."
+    },
+    {
+      "name": "Shared Subdomain Session Client",
+      "description": "Seamlessly integrates with the shared wild-card cookie session ('veryresto-auth') across base subdomains (.veryresto.com or .localtest.me) using a custom CookieStorage client-side adapter."
+    },
+    {
+      "name": "Centralized Identity Gate & Redirects",
+      "description": "Enforces platform-level authentication. Redirects unauthenticated users to community-platform for OAuth, and sends users back to the central portal waiting room if they lack platform approval."
+    },
+    {
+      "name": "Namespaced Permissions Enforcement",
+      "description": "Queries the shared public.has_namespaced_permission RPC to check for app-specific read ('ipl_finder.read_files') and write ('ipl_finder.upload_files') capabilities, decoupling access control from local logic."
+    },
+    {
+      "name": "Activity Logging & Realtime Audit Feed",
+      "description": "Tracks operations such as document downloads. Automatically logs actions to the database and uses Supabase Realtime Channels to feed live activity logs into the admin view."
+    },
+    {
+      "name": "Bulk Statement Management",
+      "description": "Enables administrators to bulk-select multiple statement files and delete them simultaneously from both Supabase Storage and database tables."
+    }
+  ],
+  "pages": [
+    {
+      "path": "/",
+      "component": "Index.tsx",
+      "name": "Document Browser & SSO Gateway",
+      "description": "Main screen containing the file index, text search engine, upload triggers, and single-file/bulk-file actions. Handles redirects for unauthenticated and unapproved users."
+    },
+    {
+      "path": "/activity",
+      "component": "ActivityLog.tsx",
+      "name": "Admin Realtime Activity Audit Log",
+      "description": "Audit page displaying a live feed of file download events and administrative actions. Accessible only to users holding administrator privileges."
+    },
+    {
+      "path": "*",
+      "component": "NotFound.tsx",
+      "name": "Not Found Screen",
+      "description": "Fallback page displayed when a user navigates to an unrecognized path."
+    }
+  ],
+  "apis": [
+    {
+      "name": "Supabase Storage API (text-files)",
+      "type": "Object Storage Service",
+      "description": "Private bucket storing the raw uploaded statement text files. Read/Write access is protected using storage RLS policies bound to 'ipl_finder.read_files' and 'ipl_finder.upload_files' permissions."
+    },
+    {
+      "name": "public.has_namespaced_permission",
+      "type": "Database RPC (Stored Procedure)",
+      "description": "Shared RPC query checking if a user possesses the requested namespaced capability ('ipl_finder.read_files' or 'ipl_finder.upload_files'). Inherently returns true for global admins."
+    },
+    {
+      "name": "delete-users",
+      "type": "Supabase Edge Function",
+      "description": "Edge function that allows administrators to permanently delete users from auth.users (cascades to public tables), preventing self-deletion and other-admin-deletion."
+    },
+    {
+      "name": "get-users-auth-info",
+      "type": "Supabase Edge Function",
+      "description": "Edge function retrieving authentication dates and last sign-in metadata from the admin auth catalog."
+    },
+    {
+      "name": "send-notification-email",
+      "type": "Supabase Edge Function",
+      "description": "Edge function using Resend API to notify admins about new registrations and notify residents of approval/rejection changes."
+    }
+  ],
+  "database_tables": [
+    {
+      "name": "public.files",
+      "description": "Stores document metadata and extracted text contents for full-text search.",
+      "key_columns": ["id (UUID, PK)", "name (Text)", "storage_path (Text)", "content (Text, Index)", "uploader_id (UUID, FK to profiles)", "file_size (Integer)", "created_at (Timestamp)"]
+    },
+    {
+      "name": "public.activity_logs",
+      "description": "Immutable ledger logging download operations and system actions.",
+      "key_columns": ["id (UUID, PK)", "user_id (UUID)", "action (Text)", "resource_type (Text)", "resource_id (UUID)", "resource_name (Text)", "metadata (JSONB)", "created_at (Timestamp)"]
+    },
+    {
+      "name": "public.profiles",
+      "description": "Ecosystem-wide profile catalog. Read by IPL Finder to display uploader details and list activity profiles.",
+      "key_columns": ["id (UUID, PK, FK to auth.users)", "email (Text)", "full_name (Text)", "avatar_url (Text)", "approval_status (Text)", "participant_type (Text)"]
+    },
+    {
+      "name": "public.user_app_roles",
+      "description": "Maps users to application-specific roles ('resident', 'admin', or 'rejected' marker role).",
+      "key_columns": ["id (UUID, PK)", "user_id (UUID, FK to auth.users)", "app_role_id (UUID, FK to app_roles)"]
+    },
+    {
+      "name": "public.app_roles",
+      "description": "Defines role templates for registered apps.",
+      "key_columns": ["id (UUID, PK)", "app_id (UUID, FK to applications)", "name (Text)"]
+    },
+    {
+      "name": "public.applications",
+      "description": "Ecosystem application registry.",
+      "key_columns": ["id (UUID, PK)", "slug (Text, Unique)", "name (Text)"]
+    },
+    {
+      "name": "public.user_roles",
+      "description": "Ecosystem-wide global roles.",
+      "key_columns": ["id (UUID, PK)", "user_id (UUID, FK to auth.users)", "role (Enum: admin, resident_verifier, platform_moderator)"]
+    }
+  ],
+  "background_jobs": [
+    {
+      "name": "update_files_updated_at",
+      "trigger_event": "BEFORE UPDATE ON public.files",
+      "description": "Triggers on files table modification to auto-maintain the updated_at timestamp metadata."
+    },
+    {
+      "name": "on_auth_user_created",
+      "trigger_event": "AFTER INSERT ON auth.users",
+      "description": "Shared trigger running public.handle_new_user() to initialize profile records on user signup."
+    },
+    {
+      "name": "on_profile_created_assign_admin",
+      "trigger_event": "AFTER INSERT ON public.profiles",
+      "description": "Shared trigger running public.assign_admin_role() to assign default admin access privileges to veryresto@gmail.com on profile creation."
+    }
+  ]
+}

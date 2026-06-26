@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface HeaderProps {
   searchQuery: string;
@@ -23,6 +25,64 @@ interface HeaderProps {
 
 export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload = true, isAdmin = false, hasPendingUsers = false }: HeaderProps) {
   const { user, signOut } = useAuth();
+  const { participantType, residentSubtype, requestedAffiliation, roles } = usePermissions();
+  const portalUrl = (window.location.hostname === 'ipl-finder.localtest.me' || window.location.hostname === 'ipl-finder.lvh.me')
+    ? 'http://community.localtest.me:5173'
+    : (import.meta.env.VITE_COMMUNITY_PLATFORM_URL || 'https://community.veryresto.com');
+
+  const getUserTags = (context: 'header' | 'dropdown') => {
+    const tags: React.ReactNode[] = [];
+
+    // 1. Classification Tag
+    if (participantType === 'resident') {
+      const isOwner = residentSubtype === 'owner';
+      const label = isOwner ? 'Resident (Owner)' : 'Resident (Renter)';
+      const colorClass = isOwner
+        ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20'
+        : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
+      tags.push(
+        <Badge key="resident-type" variant="outline" className={`text-[9px] font-semibold px-1.5 py-0.5 h-4.5 ${colorClass}`}>
+          {label}
+        </Badge>
+      );
+    } else if (participantType === 'non_resident') {
+      const affiliation = requestedAffiliation || 'Staff';
+      const formattedAffiliation = affiliation.charAt(0).toUpperCase() + affiliation.slice(1);
+      tags.push(
+        <Badge key="non-resident-type" variant="outline" className="text-[9px] font-semibold px-1.5 py-0.5 h-4.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20">
+          Non-Resident ({formattedAffiliation})
+        </Badge>
+      );
+    }
+
+    // 2. Global Role Tags
+    if (roles && Array.isArray(roles)) {
+      roles.forEach((role) => {
+        if (role === 'admin') {
+          tags.push(
+            <Badge key="role-admin" variant="outline" className="text-[9px] font-semibold px-1.5 py-0.5 h-4.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20">
+              Global Admin
+            </Badge>
+          );
+        } else if (role === 'resident_verifier') {
+          tags.push(
+            <Badge key="role-verifier" variant="outline" className="text-[9px] font-semibold px-1.5 py-0.5 h-4.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
+              Verifier
+            </Badge>
+          );
+        } else if (role === 'platform_moderator') {
+          tags.push(
+            <Badge key="role-moderator" variant="outline" className="text-[9px] font-semibold px-1.5 py-0.5 h-4.5 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20">
+              Moderator
+            </Badge>
+          );
+        }
+      });
+    }
+
+    return tags;
+  };
+
 
   const getInitials = (name?: string | null, email?: string | null) => {
     if (name) {
@@ -62,13 +122,10 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
         <div className="flex items-center gap-2">
           {isAdmin && (
             <Button variant="outline" size="sm" asChild className="gap-2 relative">
-              <Link to="/admin">
+              <a href={`${portalUrl}/admin`}>
                 <Shield className="h-4 w-4" />
                 <span className="hidden sm:inline">Admin</span>
-                {hasPendingUsers && (
-                  <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive" />
-                )}
-              </Link>
+              </a>
             </Button>
           )}
 
@@ -78,6 +135,11 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
               <span className="hidden sm:inline">Upload</span>
             </Button>
           )}
+
+          {/* Header Tags (Scalable list visible near the avatar) */}
+          <div className="hidden md:flex items-center gap-1.5 mr-1">
+            {getUserTags('header')}
+          </div>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -95,15 +157,18 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56" align="end" forceMount>
               <div className="flex items-center gap-2 p-2">
-                <Avatar className="h-8 w-8">
+                <Avatar className="h-8 w-8 flex-shrink-0">
                   <AvatarImage src={user?.user_metadata?.avatar_url} />
                   <AvatarFallback className="bg-primary/10 text-primary text-xs">
                     {getInitials(user?.user_metadata?.full_name, user?.email)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex flex-col space-y-0.5">
-                  <p className="text-sm font-medium">{user?.user_metadata?.full_name || "User"}</p>
+                <div className="flex flex-col space-y-0.5 min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{user?.user_metadata?.full_name || "User"}</p>
                   <p className="text-xs text-muted-foreground truncate max-w-[180px]">{user?.email}</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {getUserTags('dropdown')}
+                  </div>
                 </div>
               </div>
               <DropdownMenuSeparator />

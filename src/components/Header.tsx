@@ -1,4 +1,4 @@
-import { Search, Upload, LogOut, FileText, Shield } from "lucide-react";
+import { Search, Upload, LogOut, FileText, Shield, LayoutGrid } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -120,14 +120,12 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
         </div>
 
         <div className="flex items-center gap-2">
-          {isAdmin && (
-            <Button variant="outline" size="sm" asChild className="gap-2 relative">
-              <a href={`${portalUrl}/admin`}>
-                <Shield className="h-4 w-4" />
-                <span className="hidden sm:inline">Admin</span>
-              </a>
-            </Button>
-          )}
+          <Button variant="outline" size="sm" asChild className="gap-2 relative">
+            <a href={portalUrl}>
+              <LayoutGrid className="h-4 w-4" />
+              <span className="hidden sm:inline">Portal</span>
+            </a>
+          </Button>
 
           {canUpload && (
             <Button onClick={onUploadClick} size="sm" className="gap-2">

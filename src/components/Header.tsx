@@ -121,7 +121,7 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
 
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" asChild className="gap-2 relative">
-            <a href={portalUrl}>
+            <a href={portalUrl} target="_blank" rel="noopener noreferrer">
               <LayoutGrid className="h-4 w-4" />
               <span className="hidden sm:inline">Portal</span>
             </a>

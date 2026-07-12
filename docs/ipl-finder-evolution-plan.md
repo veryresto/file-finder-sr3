@@ -25,8 +25,8 @@ All local authentication screens and routes have been removed from IPL Finder.
   window.location.replace(`${portalUrl}/?redirect_to=${encodeURIComponent(window.location.origin)}`);
   ```
 - **Dynamic Portal Resolution**: The target portal URL is resolved dynamically:
-  * **Local Development**: Points to `http://community.localtest.me:5173`
-  * **Production**: Points to `https://community.veryresto.com` (or overrides via `VITE_COMMUNITY_PLATFORM_URL`).
+  * **Local Development**: Points to `http://portal.localtest.me:5173`
+  * **Production**: Points to `https://portal.veryresto.com` (or overrides via `VITE_PORTAL_URL`).
 
 ### 2. Subdomain Cookie Integration
 To restore sessions seamlessly when returning from the portal, IPL Finder now uses the identical `CookieStorage` adapter as the community portal.
@@ -75,8 +75,8 @@ VITE_SUPABASE_URL="https://your-supabase-project.supabase.co"
 VITE_SUPABASE_PUBLISHABLE_KEY="your-supabase-anon-key"
 
 # Canonical Identity Portal URL
-VITE_COMMUNITY_PLATFORM_URL="https://community.veryresto.com"
+VITE_PORTAL_URL="https://portal.veryresto.com"
 ```
 
 > [!IMPORTANT]
-> Because Vite embeds environment variables at build time, any changes to `VITE_COMMUNITY_PLATFORM_URL` require a full rebuild and redeployment of the application (`fly deploy`).
+> Because Vite embeds environment variables at build time, any changes to `VITE_PORTAL_URL` require a full rebuild and redeployment of the application (`fly deploy`).

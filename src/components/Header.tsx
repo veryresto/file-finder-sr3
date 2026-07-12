@@ -27,8 +27,8 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
   const { user, signOut } = useAuth();
   const { participantType, residentSubtype, requestedAffiliation, roles } = usePermissions();
   const portalUrl = (window.location.hostname === 'ipl-finder.localtest.me' || window.location.hostname === 'ipl-finder.lvh.me')
-    ? 'http://community.localtest.me:5173'
-    : (import.meta.env.VITE_COMMUNITY_PLATFORM_URL || 'https://community.veryresto.com');
+    ? 'http://portal.localtest.me:5173'
+    : (import.meta.env.VITE_PORTAL_URL || 'https://portal.veryresto.com');
 
   const getUserTags = (context: 'header' | 'dropdown') => {
     const tags: React.ReactNode[] = [];

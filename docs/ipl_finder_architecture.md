@@ -29,7 +29,7 @@ In a residential community managing monthly utility payments (IPL = *Iuran Penge
 
 IPL Finder is one of several community tools in the **Veryresto ecosystem** (alongside `rekap-viewer`, `community-platform`, and others). It is not a standalone application — it is an **ecosystem client**:
 
-- Authentication is delegated entirely to `community.veryresto.com` (the `community-platform`)
+- Authentication is delegated entirely to `portal.veryresto.com` (the `community-platform`)
 - It shares the same Supabase project, auth instance, and database as the community platform
 - Wildcard cookie sessions (`.veryresto.com`) allow seamless SSO between subdomains
 - It reads platform-level approval status and RBAC roles from shared tables managed by the community platform
@@ -166,7 +166,7 @@ There is no `/admin` route in this app. The "Admin" button in the header navigat
 
 ### How Shared Authentication Works
 
-All ecosystem apps share a single Supabase project. When a user authenticates via `community.veryresto.com`:
+All ecosystem apps share a single Supabase project. When a user authenticates via `portal.veryresto.com`:
 1. Supabase Auth issues a JWT (access token + refresh token)
 2. The community platform's `CookieStorage` adapter writes the session as `veryresto-auth` with `domain=.veryresto.com; path=/; SameSite=Lax; Secure`
 3. When the user navigates to `ipl-finder.veryresto.com`, the browser automatically sends the same cookie
@@ -508,7 +508,7 @@ Used in exactly one place: `ActivityLog.tsx` subscribes to `INSERT` events on `a
 
 ### Resident Onboarding
 
-1. New resident visits `ipl-finder.veryresto.com` with no session → redirected to `community.veryresto.com/?redirect_to=...`
+1. New resident visits `ipl-finder.veryresto.com` with no session → redirected to `portal.veryresto.com/?redirect_to=...`
 2. Resident authenticates via Google OAuth on community platform
 3. `profiles` row is auto-created via `handle_new_user` trigger; `approval_status = 'pending'`
 4. Resident is shown the community platform waiting room (collects house_number, whatsapp_number)
@@ -628,7 +628,7 @@ Admin user list, activity logs (limited to 100), and file list all use full-tabl
 **14. No error monitoring**
 There is no error tracking (Sentry, etc.). Failures in edge functions or data fetching surface only as toast notifications or `console.error` logs.
 
-**15. `VITE_COMMUNITY_PLATFORM_URL` is baked at build time**
+**15. `VITE_PORTAL_URL` is baked at build time**
 Any production portal URL change requires a full rebuild and redeploy (Vite embeds env vars at build time). This is noted in `docs/ipl-finder-evolution-plan.md` as a known constraint.
 
 ---

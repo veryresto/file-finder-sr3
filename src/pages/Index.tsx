@@ -44,8 +44,8 @@ const Index = () => {
   const { isAdmin, isPlatformApproved, isApproved, isRejected, canReadFiles, canUploadFiles, loading: permLoading, resolvedUserId } = usePermissions();
   const { toast } = useToast();
   const portalUrl = (window.location.hostname === 'ipl-finder.localtest.me' || window.location.hostname === 'ipl-finder.lvh.me')
-    ? 'http://community.localtest.me:5173'
-    : (import.meta.env.VITE_COMMUNITY_PLATFORM_URL || 'https://community.veryresto.com');
+    ? 'http://portal.localtest.me:5173'
+    : (import.meta.env.VITE_PORTAL_URL || 'https://portal.veryresto.com');
 
 
   const userId = user?.id;
@@ -339,7 +339,7 @@ const Index = () => {
             Your account is approved on the platform, but you do not have permission to access IPL Finder. Please contact your administrator to request access.
           </p>
           <Button asChild variant="outline" className="w-full">
-            <a href={`${portalUrl}/`}>Back to Hub</a>
+            <a href={`${portalUrl}/`} target="_blank" rel="noopener noreferrer">Back to Hub</a>
           </Button>
         </div>
       </div>

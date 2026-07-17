@@ -8,7 +8,7 @@ This document describes the architectural changes implemented in the IPL Finder 
 
 | Feature | Standalone Architecture (Before) | Centralized Architecture (After) |
 | :--- | :--- | :--- |
-| **Login Handler** | Local Google OAuth triggered on the local `/login` route. | Centralized Google OAuth handled at `community.veryresto.com`. |
+| **Login Handler** | Local Google OAuth triggered on the local `/login` route. | Centralized Google OAuth handled at `portal.veryresto.com`. |
 | **Waiting Room** | Local `PendingApprovalScreen` (collected house & phone numbers). | Centralized Waiting Room at community portal. |
 | **Admin Controls** | Local `/admin` dashboard for user approvals and role toggles. | Centralized Platform Dashboard at community portal. |
 | **Session Engine** | Standard browser `localStorage` engine (host-locked). | Custom `.veryresto.com` subdomain `CookieStorage` (`veryresto-auth`). |

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
+import { buildInfo } from "@/generated/build-info";
 
 interface HeaderProps {
   searchQuery: string;
@@ -103,7 +104,15 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
             <FileText className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="hidden font-semibold text-foreground sm:inline-block">IPL Finder</span>
+          <div className="flex items-center gap-2">
+            <span className="hidden font-semibold text-foreground sm:inline-block">IPL Finder</span>
+            <span 
+              className="text-[10px] font-medium text-muted-foreground bg-secondary px-1.5 py-0.5 rounded cursor-pointer"
+              title={`Branch: ${buildInfo.gitBranch}\nCommit: ${buildInfo.gitCommitSha}\nBuilt: ${new Date(buildInfo.buildTimestamp).toLocaleString()}\nEnv: ${buildInfo.environment}`}
+            >
+              v{buildInfo.version}
+            </span>
+          </div>
         </div>
 
         <div className="flex flex-1 max-w-xl items-center">

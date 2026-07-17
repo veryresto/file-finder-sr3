@@ -1,6 +1,6 @@
 # IPL Finder Evolution Plan: Standalone to Shared Identity Platform
 
-This document describes the architectural changes implemented in the IPL Finder (`file-finder-sr3`) application to transition its authentication, authorization, and governance systems from a standalone model to a shared-subdomain identity client consuming the **Veryresto Community Identity Portal** (`community-platform`).
+This document describes the architectural changes implemented in the IPL Finder (`file-finder-sr3`) application to transition its authentication, authorization, and governance systems from a standalone model to a shared-subdomain identity client consuming the **Veryresto Community Identity Portal** (`community-portal`).
 
 ---
 

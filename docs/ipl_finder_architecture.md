@@ -27,9 +27,9 @@ In a residential community managing monthly utility payments (IPL = *Iuran Penge
 
 ### Fit in the Larger Ecosystem
 
-IPL Finder is one of several community tools in the **Veryresto ecosystem** (alongside `rekap-viewer`, `community-platform`, and others). It is not a standalone application — it is an **ecosystem client**:
+IPL Finder is one of several community tools in the **Veryresto ecosystem** (alongside `rekap-viewer`, `community-portal`, and others). It is not a standalone application — it is an **ecosystem client**:
 
-- Authentication is delegated entirely to `portal.veryresto.com` (the `community-platform`)
+- Authentication is delegated entirely to `portal.veryresto.com` (the `community-portal`)
 - It shares the same Supabase project, auth instance, and database as the community platform
 - Wildcard cookie sessions (`.veryresto.com`) allow seamless SSO between subdomains
 - It reads platform-level approval status and RBAC roles from shared tables managed by the community platform
@@ -97,7 +97,7 @@ The Supabase client is configured in [`src/integrations/supabase/client.ts`](fil
 
 ```typescript
 auth: {
-  storageKey: 'veryresto-auth',   // shared key with community-platform
+  storageKey: 'veryresto-auth',   // shared key with community-portal
   storage: new CookieStorage(),    // custom wildcard cookie adapter
   persistSession: true,
   autoRefreshToken: true,
@@ -145,17 +145,17 @@ No pagination or infinite scroll exists anywhere.
 /*          → NotFound.tsx
 ```
 
-There is no `/admin` route in this app. The "Admin" button in the header navigates to `${portalUrl}/admin` — an **external URL on community-platform**.
+There is no `/admin` route in this app. The "Admin" button in the header navigates to `${portalUrl}/admin` — an **external URL on community-portal**.
 
 ### Responsibility Boundary
 
 | Responsibility | Owned By |
 |---|---|
-| Google OAuth flow | `community-platform` |
-| Waiting room / profile collection | `community-platform` |
-| User approval workflow | `community-platform` |
-| Global platform roles (`user_roles`) | `community-platform` |
-| App-specific permissions (`user_app_roles`) | `community-platform` (manages via central admin UI) |
+| Google OAuth flow | `community-portal` |
+| Waiting room / profile collection | `community-portal` |
+| User approval workflow | `community-portal` |
+| Global platform roles (`user_roles`) | `community-portal` |
+| App-specific permissions (`user_app_roles`) | `community-portal` (manages via central admin UI) |
 | File storage and search | IPL Finder |
 | Download audit trail | IPL Finder |
 | Local user management (legacy) | IPL Finder (`Admin.tsx` — partly obsolete, see §10) |
@@ -171,7 +171,7 @@ All ecosystem apps share a single Supabase project. When a user authenticates vi
 2. The community platform's `CookieStorage` adapter writes the session as `veryresto-auth` with `domain=.veryresto.com; path=/; SameSite=Lax; Secure`
 3. When the user navigates to `ipl-finder.veryresto.com`, the browser automatically sends the same cookie
 4. IPL Finder's own `CookieStorage` adapter reads `veryresto-auth` and restores the session via `supabase.auth.getSession()`
-5. The JWT is validated by Supabase PostgREST on every database request — no round-trip to community-platform needed
+5. The JWT is validated by Supabase PostgREST on every database request — no round-trip to community-portal needed
 
 **Cookie payload optimization**: To stay within the 4KB browser cookie limit, the adapter strips all user metadata on write, storing only `access_token`, `refresh_token`, `expires_at`, `expires_in`, and `token_type`. On read, it decodes the JWT payload using `parseJwt()` to reconstruct the `user` object.
 
@@ -215,7 +215,7 @@ The redirect guards use `window.location.replace()` (not `useNavigate`) to ensur
 
 ### Cookie / Session Assumptions
 
-- The shared storage key `veryresto-auth` is hard-coded in both `community-platform` and IPL Finder — any rename breaks session sharing
+- The shared storage key `veryresto-auth` is hard-coded in both `community-portal` and IPL Finder — any rename breaks session sharing
 - The cookie domain detection logic is environment-aware: `.veryresto.com` for production, `.localtest.me` for local dev, and bare `hostname` for anything else (including `localhost`)
 - The `Secure` flag is driven by `window.location.protocol`, so HTTP local development works without special config
 
@@ -519,7 +519,7 @@ Used in exactly one place: `ActivityLog.tsx` subscribes to `INSERT` events on `a
 
 ### Admin Moderation (User Management)
 
-> **Note**: As of the ecosystem evolution, user management is intended to be centralized at `community-platform/admin`. The local `Admin.tsx` page in IPL Finder still exists and is reachable but is architecturally obsolete.
+> **Note**: As of the ecosystem evolution, user management is intended to be centralized at `community-portal/admin`. The local `Admin.tsx` page in IPL Finder still exists and is reachable but is architecturally obsolete.
 
 Local Admin.tsx workflow:
 1. Admin accesses `/admin` route (protected via `isAdmin` check)
@@ -582,7 +582,7 @@ Files are uploaded one at a time in a `for` loop. Parallel uploads with `Promise
 ### Maintainability Issues
 
 **6. Legacy Admin.tsx is architecturally ambiguous**
-`Admin.tsx` provides local user management that now partially overlaps with what `community-platform` does. The "Admin" button in `Header.tsx` points to `${portalUrl}/admin` (external), but the `/admin` route in this app still renders the local admin page. This creates two diverging admin surfaces.
+`Admin.tsx` provides local user management that now partially overlaps with what `community-portal` does. The "Admin" button in `Header.tsx` points to `${portalUrl}/admin` (external), but the `/admin` route in this app still renders the local admin page. This creates two diverging admin surfaces.
 
 **7. Hardcoded admin email in SQL trigger**
 `assign_admin_role()` hardcodes `veryresto@gmail.com`. Any admin change requires a new migration.

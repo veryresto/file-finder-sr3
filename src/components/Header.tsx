@@ -106,7 +106,7 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
           </div>
           <div className="flex items-center gap-2">
             <span className="hidden font-semibold text-foreground sm:inline-block">IPL Finder</span>
-            <span 
+            <span
               className="text-[10px] font-medium text-muted-foreground bg-secondary px-1.5 py-0.5 rounded cursor-pointer"
               title={`Branch: ${buildInfo.gitBranch}\nCommit: ${buildInfo.gitCommitSha}\nBuilt: ${new Date(buildInfo.buildTimestamp).toLocaleString()}\nEnv: ${buildInfo.environment}`}
             >
@@ -142,11 +142,6 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
               <span className="hidden sm:inline">Upload</span>
             </Button>
           )}
-
-          {/* Header Tags (Scalable list visible near the avatar) */}
-          <div className="hidden md:flex items-center gap-1.5 mr-1">
-            {getUserTags('header')}
-          </div>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

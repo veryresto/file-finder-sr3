@@ -27,3 +27,6 @@ dist-ssr
 # Supabase
 .env.production
 supabase/.temp
+
+# Generated build files
+src/generated/

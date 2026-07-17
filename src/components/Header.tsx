@@ -1,4 +1,4 @@
-import { Search, Upload, LogOut, FileText, Shield } from "lucide-react";
+import { Search, Upload, LogOut, FileText, Shield, LayoutGrid } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
+import { buildInfo } from "@/generated/build-info";
 
 interface HeaderProps {
   searchQuery: string;
@@ -27,8 +28,8 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
   const { user, signOut } = useAuth();
   const { participantType, residentSubtype, requestedAffiliation, roles } = usePermissions();
   const portalUrl = (window.location.hostname === 'ipl-finder.localtest.me' || window.location.hostname === 'ipl-finder.lvh.me')
-    ? 'http://community.localtest.me:5173'
-    : (import.meta.env.VITE_COMMUNITY_PLATFORM_URL || 'https://community.veryresto.com');
+    ? 'http://portal.localtest.me:5173'
+    : (import.meta.env.VITE_PORTAL_URL || 'https://portal.veryresto.com');
 
   const getUserTags = (context: 'header' | 'dropdown') => {
     const tags: React.ReactNode[] = [];
@@ -103,7 +104,15 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
             <FileText className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="hidden font-semibold text-foreground sm:inline-block">IPL Finder</span>
+          <div className="flex items-center gap-2">
+            <span className="hidden font-semibold text-foreground sm:inline-block">IPL Finder</span>
+            <span 
+              className="text-[10px] font-medium text-muted-foreground bg-secondary px-1.5 py-0.5 rounded cursor-pointer"
+              title={`Branch: ${buildInfo.gitBranch}\nCommit: ${buildInfo.gitCommitSha}\nBuilt: ${new Date(buildInfo.buildTimestamp).toLocaleString()}\nEnv: ${buildInfo.environment}`}
+            >
+              v{buildInfo.version}
+            </span>
+          </div>
         </div>
 
         <div className="flex flex-1 max-w-xl items-center">
@@ -120,14 +129,12 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
         </div>
 
         <div className="flex items-center gap-2">
-          {isAdmin && (
-            <Button variant="outline" size="sm" asChild className="gap-2 relative">
-              <a href={`${portalUrl}/admin`}>
-                <Shield className="h-4 w-4" />
-                <span className="hidden sm:inline">Admin</span>
-              </a>
-            </Button>
-          )}
+          <Button variant="outline" size="sm" asChild className="gap-2 relative">
+            <a href={portalUrl} target="_blank" rel="noopener noreferrer">
+              <LayoutGrid className="h-4 w-4" />
+              <span className="hidden sm:inline">Portal</span>
+            </a>
+          </Button>
 
           {canUpload && (
             <Button onClick={onUploadClick} size="sm" className="gap-2">

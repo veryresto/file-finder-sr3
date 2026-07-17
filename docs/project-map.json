@@ -14,7 +14,7 @@
     },
     {
       "name": "Centralized Identity Gate & Redirects",
-      "description": "Enforces platform-level authentication. Redirects unauthenticated users to community-platform for OAuth, and sends users back to the central portal waiting room if they lack platform approval."
+      "description": "Enforces platform-level authentication. Redirects unauthenticated users to community-portal for OAuth, and sends users back to the central portal waiting room if they lack platform approval."
     },
     {
       "name": "Namespaced Permissions Enforcement",

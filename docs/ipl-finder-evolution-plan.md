@@ -1,6 +1,6 @@
 # IPL Finder Evolution Plan: Standalone to Shared Identity Platform
 
-This document describes the architectural changes implemented in the IPL Finder (`file-finder-sr3`) application to transition its authentication, authorization, and governance systems from a standalone model to a shared-subdomain identity client consuming the **Veryresto Community Identity Portal** (`community-platform`).
+This document describes the architectural changes implemented in the IPL Finder (`file-finder-sr3`) application to transition its authentication, authorization, and governance systems from a standalone model to a shared-subdomain identity client consuming the **Veryresto Community Identity Portal** (`community-portal`).
 
 ---
 
@@ -8,7 +8,7 @@ This document describes the architectural changes implemented in the IPL Finder 
 
 | Feature | Standalone Architecture (Before) | Centralized Architecture (After) |
 | :--- | :--- | :--- |
-| **Login Handler** | Local Google OAuth triggered on the local `/login` route. | Centralized Google OAuth handled at `community.veryresto.com`. |
+| **Login Handler** | Local Google OAuth triggered on the local `/login` route. | Centralized Google OAuth handled at `portal.veryresto.com`. |
 | **Waiting Room** | Local `PendingApprovalScreen` (collected house & phone numbers). | Centralized Waiting Room at community portal. |
 | **Admin Controls** | Local `/admin` dashboard for user approvals and role toggles. | Centralized Platform Dashboard at community portal. |
 | **Session Engine** | Standard browser `localStorage` engine (host-locked). | Custom `.veryresto.com` subdomain `CookieStorage` (`veryresto-auth`). |
@@ -25,8 +25,8 @@ All local authentication screens and routes have been removed from IPL Finder.
   window.location.replace(`${portalUrl}/?redirect_to=${encodeURIComponent(window.location.origin)}`);
   ```
 - **Dynamic Portal Resolution**: The target portal URL is resolved dynamically:
-  * **Local Development**: Points to `http://community.localtest.me:5173`
-  * **Production**: Points to `https://community.veryresto.com` (or overrides via `VITE_COMMUNITY_PLATFORM_URL`).
+  * **Local Development**: Points to `http://portal.localtest.me:5173`
+  * **Production**: Points to `https://portal.veryresto.com` (or overrides via `VITE_PORTAL_URL`).
 
 ### 2. Subdomain Cookie Integration
 To restore sessions seamlessly when returning from the portal, IPL Finder now uses the identical `CookieStorage` adapter as the community portal.
@@ -75,8 +75,8 @@ VITE_SUPABASE_URL="https://your-supabase-project.supabase.co"
 VITE_SUPABASE_PUBLISHABLE_KEY="your-supabase-anon-key"
 
 # Canonical Identity Portal URL
-VITE_COMMUNITY_PLATFORM_URL="https://community.veryresto.com"
+VITE_PORTAL_URL="https://portal.veryresto.com"
 ```
 
 > [!IMPORTANT]
-> Because Vite embeds environment variables at build time, any changes to `VITE_COMMUNITY_PLATFORM_URL` require a full rebuild and redeployment of the application (`fly deploy`).
+> Because Vite embeds environment variables at build time, any changes to `VITE_PORTAL_URL` require a full rebuild and redeployment of the application (`fly deploy`).

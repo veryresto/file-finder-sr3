@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Search, Upload, LogOut, FileText, Shield, LayoutGrid } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ interface HeaderProps {
 export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload = true, isAdmin = false, hasPendingUsers = false }: HeaderProps) {
   const { user, signOut } = useAuth();
   const { participantType, residentSubtype, requestedAffiliation, roles } = usePermissions();
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const portalUrl = (window.location.hostname === 'ipl-finder.localtest.me' || window.location.hostname === 'ipl-finder.lvh.me')
     ? 'http://portal.localtest.me:5173'
     : (import.meta.env.VITE_PORTAL_URL || 'https://portal.veryresto.com');
@@ -100,7 +102,7 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-card/80 backdrop-blur-xl">
       <div className="container flex h-16 items-center justify-between gap-4 px-4 md:px-6">
-        <div className="flex items-center gap-3">
+        <div className={`flex items-center gap-3 transition-all duration-200 ${isSearchFocused ? 'hidden sm:flex' : 'flex'}`}>
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
             <FileText className="h-5 w-5 text-primary-foreground" />
           </div>
@@ -115,7 +117,7 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
           </div>
         </div>
 
-        <div className="flex flex-1 max-w-xl items-center">
+        <div className="flex flex-1 max-w-xl items-center transition-all duration-200">
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -123,13 +125,20 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
               placeholder="Search files by keyword..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
               className="w-full pl-10 pr-4 bg-secondary/50 border-transparent focus:border-primary/50 focus:bg-card transition-colors"
             />
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" asChild className="gap-2 relative">
+          <Button
+            variant="outline"
+            size="sm"
+            asChild
+            className={`gap-2 relative transition-all duration-200 ${isSearchFocused ? 'hidden sm:inline-flex' : 'inline-flex'}`}
+          >
             <a href={portalUrl} target="_blank" rel="noopener noreferrer">
               <LayoutGrid className="h-4 w-4" />
               <span className="hidden sm:inline">Portal</span>
@@ -137,7 +146,11 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
           </Button>
 
           {canUpload && (
-            <Button onClick={onUploadClick} size="sm" className="gap-2">
+            <Button
+              onClick={onUploadClick}
+              size="sm"
+              className={`gap-2 transition-all duration-200 ${isSearchFocused ? 'hidden sm:inline-flex' : 'inline-flex'}`}
+            >
               <Upload className="h-4 w-4" />
               <span className="hidden sm:inline">Upload</span>
             </Button>

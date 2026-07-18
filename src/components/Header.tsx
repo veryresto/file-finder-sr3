@@ -107,7 +107,7 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
           <div className="flex items-center gap-2">
             <span className="hidden font-semibold text-foreground sm:inline-block">IPL Finder</span>
             <span
-              className="text-[10px] font-medium text-muted-foreground bg-secondary px-1.5 py-0.5 rounded cursor-pointer"
+              className="hidden sm:inline-block text-[10px] font-medium text-muted-foreground bg-secondary px-1.5 py-0.5 rounded cursor-pointer"
               title={`Branch: ${buildInfo.gitBranch}\nCommit: ${buildInfo.gitCommitSha}\nBuilt: ${new Date(buildInfo.buildTimestamp).toLocaleString()}\nEnv: ${buildInfo.environment}`}
             >
               v{buildInfo.version}

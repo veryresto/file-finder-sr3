@@ -6,6 +6,8 @@
   "scripts": {
     "predev": "node scripts/generate-build-info.js",
     "dev": "vite",
+    "dev:staging": "npm run predev && vite --mode development --host ipl-finder.localtest.me --port 8080",
+    "dev:prod": "npm run predev && vite --mode production --host ipl-finder.localtest.me --port 8080",
     "prebuild": "node scripts/generate-build-info.js",
     "build": "vite build",
     "build:dev": "vite build --mode development",
@@ -13,7 +15,8 @@
     "preview": "vite preview",
     "host:local": "vite --host",
     "host:dev": "vite build --mode development -- --host",
-    "deploy": "fly deploy --build-arg VITE_GIT_SHA=$(git rev-parse HEAD) --build-arg VITE_GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD) --build-arg VITE_APP_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo '')"
+    "deploy:staging": "fly deploy --build-arg VITE_GIT_SHA=$(git rev-parse HEAD) --build-arg VITE_GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD) --build-arg VITE_APP_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo '')",
+    "deploy:prod": "fly deploy -c fly.production.toml --build-arg VITE_GIT_SHA=$(git rev-parse HEAD) --build-arg VITE_GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD) --build-arg VITE_APP_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo '')"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

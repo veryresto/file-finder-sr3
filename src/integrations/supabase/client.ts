@@ -30,6 +30,9 @@ const getCookieDomain = (): string => {
   if (hostname.endsWith('.veryresto.com') || hostname === 'veryresto.com') {
     return '.veryresto.com';
   }
+  if (hostname.endsWith('.sakura3.id') || hostname === 'sakura3.id') {
+    return '.sakura3.id';
+  }
   return hostname;
 };
 
@@ -152,7 +155,7 @@ class CookieStorage implements SupportedStorage {
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
-    storageKey: 'veryresto-auth',
+    storageKey: 'sakura3-auth',
     storage: new CookieStorage(),
     persistSession: true,
     autoRefreshToken: true,

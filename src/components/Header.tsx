@@ -31,6 +31,8 @@ export function Header({ searchQuery, onSearchChange, onUploadClick, canUpload =
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const portalUrl = (window.location.hostname === 'ipl-finder.localtest.me' || window.location.hostname === 'ipl-finder.lvh.me')
     ? 'http://portal.localtest.me:5173'
+    : window.location.hostname.endsWith('.sakura3.id')
+    ? 'https://portal.sakura3.id'
     : (import.meta.env.VITE_PORTAL_URL || 'https://portal.veryresto.com');
 
   const getUserTags = (context: 'header' | 'dropdown') => {

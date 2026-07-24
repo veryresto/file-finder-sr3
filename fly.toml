@@ -7,6 +7,10 @@ app = 'ipl-finder'
 primary_region = 'sin'
 
 [build]
+  [build.args]
+    VITE_SUPABASE_URL = "https://lfxkabhzfgenpqfnhjyw.supabase.co"
+    VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_jtADEBQ9FAYPaSqU5iabtg_m356QDIw"
+    VITE_PORTAL_URL = "https://portal.veryresto.com"
 
 [http_service]
   internal_port = 8080

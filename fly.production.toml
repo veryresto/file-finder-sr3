@@ -1,0 +1,23 @@
+# fly.toml app configuration file for ipl-finder-prod (Production)
+
+app = "ipl-finder-prod"
+primary_region = "sin"
+
+[build]
+  [build.args]
+    VITE_SUPABASE_URL = "https://cycloiewvrajoeosahtd.supabase.co"
+    VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_31n0z182NnueTrYzppqW_w_gBf-vN8p"
+    VITE_PORTAL_URL = "https://portal.sakura3.id"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[vm]]
+  memory = "256mb"
+  cpus = 1
+  memory_mb = 256

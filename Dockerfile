@@ -10,6 +10,14 @@ RUN npm ci
 # Copy the rest of the application files and build
 COPY . .
 
+# Accept Supabase and Portal environment variables at build-time
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_PUBLISHABLE_KEY
+ARG VITE_PORTAL_URL
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
+ENV VITE_PORTAL_URL=$VITE_PORTAL_URL
+
 # Accept Git Commit SHA, Branch, and Version at build-time
 ARG VITE_GIT_SHA
 ARG VITE_GIT_BRANCH
